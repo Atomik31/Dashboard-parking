@@ -81,8 +81,8 @@ Sites Semepa → Scraping HTML → Extraction Regex → Cache JSON → Dashboard
 
 ```
 parking-dashboard/
-├── dashboard_parking_background.py  # Fichier principal (Streamlit)
-├── requirements.txt                 # Dépendances Python
+├── dashboard_parking.py            # Fichier principal (Streamlit)
+├── requirements.txt                # Dépendances Python
 ├── parkings_cache.json             # Cache des données (généré)
 └── README.md                       # Documentation
 ```
