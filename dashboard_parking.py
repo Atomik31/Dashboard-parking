@@ -8,6 +8,8 @@ import time
 import json
 import os
 from zoneinfo import ZoneInfo
+import folium
+from streamlit_folium import st_folium
 
 st.set_page_config(
     page_title="Parkings Aix-en-Provence",
@@ -20,24 +22,22 @@ st.title("🅿️ Parkings Aix-en-Provence")
 st.subheader("Places disponibles en temps réel")
 
 parkings = {
-    'Bellegarde': ('https://mamp.parkings-semepa.fr/', 213),
-    'Cardeurs': ('https://mamp.parkings-semepa.fr/', 219),
-    'Carnot': ('https://mamp.parkings-semepa.fr/', 211),
-    'Méjanes': ('https://mamp.parkings-semepa.fr/', 150),
-    'Mignet': ('https://mamp.parkings-semepa.fr/', 209),
-    'Pasteur': ('https://mamp.parkings-semepa.fr/', 215),
-    'Rambot': ('https://parkings-semepa.fr/', 221),
-    'Rotonde': ('https://parkings-semepa.fr/', 206),
-    'Signoret': ('https://mamp.parkings-semepa.fr/', 217)
+    'Bellegarde': ('https://mamp.parkings-semepa.fr/', 213, 340, 43.5326706, 5.4501075),
+    'Cardeurs': ('https://mamp.parkings-semepa.fr/', 219, 125, 43.5300081, 5.4457005),
+    'Carnot': ('https://mamp.parkings-semepa.fr/', 211, 675, 43.5255598, 5.4554612),
+    'Méjanes': ('https://mamp.parkings-semepa.fr/', 150, 800, 43.52437, 5.4397048),
+    'Mignet': ('https://mamp.parkings-semepa.fr/', 209, 800, 43.5239365, 5.4474478),
+    'Pasteur': ('https://mamp.parkings-semepa.fr/', 215, 650, 43.5336148, 5.4460137),
+    'Rambot': ('https://parkings-semepa.fr/', 221, 400, 43.5304833, 5.4580851),
+    'Rotonde': ('https://parkings-semepa.fr/', 206, 1800, 43.5264049, 5.4436793),
+    'Signoret': ('https://mamp.parkings-semepa.fr/', 217, 350, 43.5331321, 5.4484001)
 }
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
-# Fichier de cache pour les données
 CACHE_FILE = 'parkings_cache.json'
-LOCK_FILE = 'scraping.lock'
 
 def load_cache():
     """Charge les données du cache"""
@@ -58,7 +58,7 @@ def scraper_parkings():
     """Scrape tous les parkings"""
     data = {}
     
-    for nom, (base_url, page_id) in parkings.items():
+    for nom, (base_url, page_id, capacite, lat, lon) in parkings.items():
         try:
             response = requests.get(base_url, params={"page_id": page_id}, headers=headers, timeout=5)
             
@@ -69,28 +69,44 @@ def scraper_parkings():
                 places_libres = int(match_nombre.group(1))
                 data[nom] = {
                     'Places': places_libres,
+                    'Capacite': capacite,
+                    'Affichage': f"{places_libres} / {capacite}",
                     'Statut': '✅ Ouvert',
-                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                    'latitude': lat,
+                    'longitude': lon
                 }
             elif match_texte:
                 statut = match_texte.group(1)
                 data[nom] = {
                     'Places': 0,
+                    'Capacite': capacite,
+                    'Affichage': statut,
                     'Statut': f'⚠️ {statut}',
-                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                    'latitude': lat,
+                    'longitude': lon
                 }
             else:
                 data[nom] = {
                     'Places': 0,
+                    'Capacite': capacite,
+                    'Affichage': 'N/A',
                     'Statut': '❓ Pas de données',
-                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                    'latitude': lat,
+                    'longitude': lon
                 }
             
         except Exception as e:
             data[nom] = {
                 'Places': 0,
+                'Capacite': capacite,
+                'Affichage': 'Erreur',
                 'Statut': f'❌ Erreur',
-                'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
+                'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                'latitude': lat,
+                'longitude': lon
             }
         
         time.sleep(0.5)
@@ -98,7 +114,7 @@ def scraper_parkings():
     return data
 
 def scraper_background():
-    """Fonction qui scrape en arrière-plan toutes les 30 mins"""
+    """Fonction qui scrape en arrière-plan toutes les 10 mins"""
     while True:
         try:
             now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y %H:%M:%S")
@@ -110,27 +126,23 @@ def scraper_background():
         except Exception as e:
             print(f"Erreur lors du scraping: {e}")
         
-        # Attendre 10 minutes (600 secondes)
         time.sleep(600)
 
-# Initialiser le thread de scraping en background au démarrage
 if 'scraper_started' not in st.session_state:
     scraper_thread = threading.Thread(target=scraper_background, daemon=True)
     scraper_thread.start()
     st.session_state.scraper_started = True
     print("🚀 Thread de scraping lancé en background")
 
-# Charger les données du cache
 cached_data = load_cache()
 
 if not cached_data:
-    st.info("🔄 Première initialisation... chargement des données...")
+    st.info("🔄 Première initialisation... Chargement des données...")
     with st.spinner("Récupération des données en cours..."):
         cached_data = scraper_parkings()
         save_cache(cached_data)
     st.success("✅ Chargement des données terminé!")
 
-# Afficher bouton pour forcer la mise à jour
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
     if st.button("🔄 Rafraîchir maintenant", use_container_width=True):
@@ -140,14 +152,9 @@ with col2:
         st.success("✅ Données mises à jour!")
         st.rerun()
 
-# Convertir en DataFrame et trier
 df = pd.DataFrame(cached_data).T
 df = df.sort_values('Places', ascending=False)
 
-# Récupérer le dernier timestamp (tous les parkings ont le même)
-last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
-
-# Afficher les stats globales
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -159,12 +166,12 @@ with col2:
     st.metric("Parkings ouverts", f"{open_count}/9")
 
 with col3:
+    last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
     st.metric("Dernière mise à jour", last_update)
     st.caption(f"🕐 {datetime.now(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y')}")
 
 st.divider()
 
-# Afficher les cards
 cols = st.columns(3)
 
 for idx, (nom, row) in enumerate(df.iterrows()):
@@ -173,16 +180,75 @@ for idx, (nom, row) in enumerate(df.iterrows()):
     with col:
         if row['Statut'] == '✅ Ouvert':
             container = st.container(border=True)
-            container.metric(nom, f"{int(row['Places'])} places", delta=row['Statut'])
+            container.metric(nom, row['Affichage'], delta=row['Statut'])
             container.caption(f"🕐 {row['Timestamp']}")
         else:
             container = st.container(border=True)
-            container.warning(f"**{nom}**\n\n{row['Statut']}")
+            container.warning(f"**{nom}**\n\n{row['Affichage']}")
             container.caption(f"🕐 {row['Timestamp']}")
 
 st.divider()
 
-# Tableau détaillé
+# ===== MAP INTERACTIVE GOOGLE MAPS =====
+st.subheader("🗺️ Localisation des parkings")
+
+# Créer la map Folium avec tuiles Google Maps Satellite
+m = folium.Map(
+    location=[43.5298, 5.4464],
+    zoom_start=14,
+    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attr="Google"
+)
+
+# Fonction pour obtenir la couleur
+def get_color(places, capacite):
+    """Retourne la couleur selon le taux de remplissage"""
+    if capacite == 0:
+        return 'gray'
+    taux = places / capacite
+    if taux > 0.5:
+        return 'green'  # Vert - beaucoup de places
+    elif taux > 0.2:
+        return 'orange'  # Orange - places limitées
+    else:
+        return 'red'  # Rouge - presque plein
+
+# Ajouter les marqueurs pour chaque parking
+for nom, row in df.iterrows():
+    color = get_color(int(row['Places']), int(row['Capacite']))
+    
+    popup_text = f"""
+    <b>{nom}</b><br/>
+    Places: {int(row['Places'])}/{int(row['Capacite'])}<br/>
+    Statut: {row['Statut']}<br/>
+    MAJ: {row['Timestamp']}
+    """
+    
+    folium.CircleMarker(
+        location=[row['latitude'], row['longitude']],
+        radius=15,
+        popup=folium.Popup(popup_text, max_width=250),
+        tooltip=f"{nom}: {int(row['Places'])}/{int(row['Capacite'])}",
+        color=color,
+        fill=True,
+        fillColor=color,
+        fillOpacity=0.7,
+        weight=2
+    ).add_to(m)
+
+# Afficher la map
+st_folium(m, width=1400, height=600)
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
+with col2:
+    st.markdown("🟠 **20-50%** - Places limitées")
+with col3:
+    st.markdown("🔴 **Moins de 20%** - Presque plein")
+
+st.divider()
+
 st.subheader("📊 Tableau détaillé")
 st.dataframe(df, use_container_width=True)
 
