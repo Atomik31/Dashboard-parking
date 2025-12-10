@@ -7,6 +7,7 @@ import threading
 import time
 import json
 import os
+from zoneinfo import ZoneInfo
 
 st.set_page_config(
     page_title="Parkings Aix-en-Provence",
@@ -69,27 +70,27 @@ def scraper_parkings():
                 data[nom] = {
                     'Places': places_libres,
                     'Statut': '✅ Ouvert',
-                    'Timestamp': datetime.now().strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
                 }
             elif match_texte:
                 statut = match_texte.group(1)
                 data[nom] = {
                     'Places': 0,
                     'Statut': f'⚠️ {statut}',
-                    'Timestamp': datetime.now().strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
                 }
             else:
                 data[nom] = {
                     'Places': 0,
                     'Statut': '❓ Pas de données',
-                    'Timestamp': datetime.now().strftime("%H:%M:%S")
+                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
                 }
             
         except Exception as e:
             data[nom] = {
                 'Places': 0,
                 'Statut': f'❌ Erreur',
-                'Timestamp': datetime.now().strftime("%H:%M:%S")
+                'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
             }
         
         time.sleep(0.5)
@@ -100,15 +101,17 @@ def scraper_background():
     """Fonction qui scrape en arrière-plan toutes les 30 mins"""
     while True:
         try:
-            print(f"[{datetime.now()}] Scraping en arrière-plan...")
+            now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y %H:%M:%S")
+            print(f"[{now}] Scraping en arrière-plan...")
             data = scraper_parkings()
             save_cache(data)
-            print(f"[{datetime.now()}] Scraping terminé et cache mis à jour")
+            now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y %H:%M:%S")
+            print(f"[{now}] Scraping terminé et cache mis à jour")
         except Exception as e:
             print(f"Erreur lors du scraping: {e}")
         
-        # Attendre 30 minutes (1800 secondes)
-        time.sleep(1800)
+        # Attendre 10 minutes (600 secondes)
+        time.sleep(600)
 
 # Initialiser le thread de scraping en background au démarrage
 if 'scraper_started' not in st.session_state:
@@ -121,7 +124,7 @@ if 'scraper_started' not in st.session_state:
 cached_data = load_cache()
 
 if not cached_data:
-    st.info("🔄 Première initialisation... Chargement des données...")
+    st.info("🔄 Première initialisation... chargement des données...")
     with st.spinner("Récupération des données en cours..."):
         cached_data = scraper_parkings()
         save_cache(cached_data)
@@ -141,6 +144,9 @@ with col2:
 df = pd.DataFrame(cached_data).T
 df = df.sort_values('Places', ascending=False)
 
+# Récupérer le dernier timestamp (tous les parkings ont le même)
+last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
+
 # Afficher les stats globales
 col1, col2, col3 = st.columns(3)
 
@@ -153,9 +159,8 @@ with col2:
     st.metric("Parkings ouverts", f"{open_count}/9")
 
 with col3:
-    # Récupérer le dernier timestamp
-    last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
     st.metric("Dernière mise à jour", last_update)
+    st.caption(f"🕐 {datetime.now(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y')}")
 
 st.divider()
 
@@ -181,4 +186,4 @@ st.divider()
 st.subheader("📊 Tableau détaillé")
 st.dataframe(df, use_container_width=True)
 
-st.caption("⏱️ Scraping automatique en arrière-plan toutes les 30 minutes")
+st.caption("⏱️ Scraping automatique en arrière-plan toutes les 10 minutes")
