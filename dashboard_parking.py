@@ -194,8 +194,8 @@ st.subheader("🗺️ Localisation des parkings")
 
 # Créer la map Folium avec tuiles Google Maps Satellite
 m = folium.Map(
-    location=[43.5298, 5.4464],
-    zoom_start=14,
+    location=[43.52829276, 5.4525416],
+    zoom_start=15,
     tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
     attr="Google"
 )

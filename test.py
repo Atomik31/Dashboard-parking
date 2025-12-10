@@ -189,16 +189,8 @@ for idx, (nom, row) in enumerate(df.iterrows()):
 
 st.divider()
 
-# ===== MAP INTERACTIVE GOOGLE MAPS =====
+# ===== MAP FOLIUM =====
 st.subheader("🗺️ Localisation des parkings")
-
-# Créer la map Folium avec tuiles Google Maps
-m = folium.Map(
-    location=[43.5298, 5.4464],
-    zoom_start=14,
-    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    attr="Google"
-)
 
 # Fonction pour obtenir la couleur
 def get_color(places, capacite):
@@ -207,26 +199,35 @@ def get_color(places, capacite):
         return 'gray'
     taux = places / capacite
     if taux > 0.5:
-        return 'green'  # Vert - beaucoup de places
+        return 'green'
     elif taux > 0.2:
-        return 'orange'  # Orange - places limitées
+        return 'orange'
     else:
-        return 'red'  # Rouge - presque plein
+        return 'red'
 
-# Ajouter les marqueurs pour chaque parking
+# Créer la map avec Folium - style Google Maps
+m = folium.Map(
+    location=[43.52829276, 5.4525416],
+    zoom_start=15,
+    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attr="Google"
+)
+
+# Ajouter les marqueurs
 for nom, row in df.iterrows():
     color = get_color(int(row['Places']), int(row['Capacite']))
+    taux = round((int(row['Places']) / int(row['Capacite'])) * 100)
     
     popup_text = f"""
     <b>{nom}</b><br/>
     Places: {int(row['Places'])}/{int(row['Capacite'])}<br/>
-    Statut: {row['Statut']}<br/>
+    Taux: {taux}%<br/>
     MAJ: {row['Timestamp']}
     """
     
     folium.CircleMarker(
         location=[row['latitude'], row['longitude']],
-        radius=15,
+        radius=14,
         popup=folium.Popup(popup_text, max_width=250),
         tooltip=f"{nom}: {int(row['Places'])}/{int(row['Capacite'])}",
         color=color,
