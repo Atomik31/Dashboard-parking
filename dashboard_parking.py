@@ -1,9 +1,12 @@
 import streamlit as st
 import requests
 import re
-import time
 import pandas as pd
 from datetime import datetime
+import threading
+import time
+import json
+import os
 
 st.set_page_config(
     page_title="Parkings Aix-en-Provence",
@@ -31,7 +34,25 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
-@st.cache_data(ttl=30)
+# Fichier de cache pour les données
+CACHE_FILE = 'parkings_cache.json'
+LOCK_FILE = 'scraping.lock'
+
+def load_cache():
+    """Charge les données du cache"""
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_cache(data):
+    """Sauvegarde les données dans le cache"""
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(data, f)
+
 def scraper_parkings():
     """Scrape tous les parkings"""
     data = {}
@@ -75,17 +96,49 @@ def scraper_parkings():
     
     return data
 
-# Bouton pour rafraîchir
+def scraper_background():
+    """Fonction qui scrape en arrière-plan toutes les 30 mins"""
+    while True:
+        try:
+            print(f"[{datetime.now()}] Scraping en arrière-plan...")
+            data = scraper_parkings()
+            save_cache(data)
+            print(f"[{datetime.now()}] Scraping terminé et cache mis à jour")
+        except Exception as e:
+            print(f"Erreur lors du scraping: {e}")
+        
+        # Attendre 30 minutes (1800 secondes)
+        time.sleep(1800)
+
+# Initialiser le thread de scraping en background au démarrage
+if 'scraper_started' not in st.session_state:
+    scraper_thread = threading.Thread(target=scraper_background, daemon=True)
+    scraper_thread.start()
+    st.session_state.scraper_started = True
+    print("🚀 Thread de scraping lancé en background")
+
+# Charger les données du cache
+cached_data = load_cache()
+
+if not cached_data:
+    st.info("🔄 Première initialisation... Chargement des données...")
+    with st.spinner("Récupération des données en cours..."):
+        cached_data = scraper_parkings()
+        save_cache(cached_data)
+    st.success("✅ Chargement des données terminé!")
+
+# Afficher bouton pour forcer la mise à jour
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
-    if st.button("🔄 Rafraîchir", use_container_width=True):
-        st.cache_data.clear()
-
-# Récupérer les données
-data = scraper_parkings()
+    if st.button("🔄 Rafraîchir maintenant", use_container_width=True):
+        with st.spinner("Récupération des données..."):
+            cached_data = scraper_parkings()
+            save_cache(cached_data)
+        st.success("✅ Données mises à jour!")
+        st.rerun()
 
 # Convertir en DataFrame et trier
-df = pd.DataFrame(data).T
+df = pd.DataFrame(cached_data).T
 df = df.sort_values('Places', ascending=False)
 
 # Afficher les stats globales
@@ -100,7 +153,9 @@ with col2:
     st.metric("Parkings ouverts", f"{open_count}/9")
 
 with col3:
-    st.metric("Mise à jour", "Toutes les 30s", delta="auto-refresh")
+    # Récupérer le dernier timestamp
+    last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
+    st.metric("Dernière mise à jour", last_update)
 
 st.divider()
 
@@ -126,11 +181,4 @@ st.divider()
 st.subheader("📊 Tableau détaillé")
 st.dataframe(df, use_container_width=True)
 
-# Auto-refresh
-st.markdown("""
-<script>
-    setTimeout(function() {
-        window.location.reload();
-    }, 30000);
-</script>
-""", unsafe_allow_html=True)
+st.caption("⏱️ Scraping automatique en arrière-plan toutes les 30 minutes")
