@@ -22,15 +22,15 @@ st.title("🅿️ Parkings Aix-en-Provence")
 st.subheader("Places disponibles en temps réel")
 
 parkings = {
-    'Bellegarde': ('https://mamp.parkings-semepa.fr/', 213, 340, 43.5326706, 5.4501075),
-    'Cardeurs': ('https://mamp.parkings-semepa.fr/', 219, 125, 43.5300081, 5.4457005),
+    'Bellegarde': ('https://mamp.parkings-semepa.fr/', 213, 340, 43.5322096, 5.4502100),
+    'Cardeurs': ('https://mamp.parkings-semepa.fr/', 219, 125, 43.5298981, 5.4458118),
     'Carnot': ('https://mamp.parkings-semepa.fr/', 211, 675, 43.5255598, 5.4554612),
-    'Méjanes': ('https://mamp.parkings-semepa.fr/', 150, 800, 43.52437, 5.4397048),
-    'Mignet': ('https://mamp.parkings-semepa.fr/', 209, 800, 43.524251298364696, 5.4476974319511955),
-    'Pasteur': ('https://mamp.parkings-semepa.fr/', 215, 650, 43.5336148, 5.4460137),
+    'Méjanes': ('https://mamp.parkings-semepa.fr/', 150, 800, 43.5239974, 5.4413805),
+    'Mignet': ('https://mamp.parkings-semepa.fr/', 209, 800, 43.52425, 5.4476974),
+    'Pasteur': ('https://mamp.parkings-semepa.fr/', 215, 650, 43.5339951, 5.4462335),
     'Rambot': ('https://parkings-semepa.fr/', 221, 400, 43.5304833, 5.4580851),
-    'Rotonde': ('https://parkings-semepa.fr/', 206, 1800, 43.5264049, 5.4436793),
-    'Signoret': ('https://mamp.parkings-semepa.fr/', 217, 350, 43.5331321, 5.4484001)
+    'Rotonde': ('https://parkings-semepa.fr/', 206, 1800, 43.5253922, 5.4440594),
+    'Signoret': ('https://mamp.parkings-semepa.fr/', 217, 350, 43.5333509, 5.4486254)
 }
 
 headers = {
@@ -237,7 +237,7 @@ for nom, row in df.iterrows():
     ).add_to(m)
 
 # Afficher la map
-st_folium(m, width=1400, height=600)
+st_folium(m, width=1600, height=600)
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -252,4 +252,4 @@ st.divider()
 st.subheader("📊 Tableau détaillé")
 st.dataframe(df, use_container_width=True)
 
-st.caption("⏱️ Scraping automatique en arrière-plan toutes les 10 minutes")
+st.caption("✒️ Dashboard conçu par Julien CHR")
