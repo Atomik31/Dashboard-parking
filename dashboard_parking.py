@@ -26,7 +26,7 @@ parkings = {
     'Cardeurs': ('https://mamp.parkings-semepa.fr/', 219, 125, 43.5300081, 5.4457005),
     'Carnot': ('https://mamp.parkings-semepa.fr/', 211, 675, 43.5255598, 5.4554612),
     'Méjanes': ('https://mamp.parkings-semepa.fr/', 150, 800, 43.52437, 5.4397048),
-    'Mignet': ('https://mamp.parkings-semepa.fr/', 209, 800, 43.5239365, 5.4474478),
+    'Mignet': ('https://mamp.parkings-semepa.fr/', 209, 800, 43.5239365, 5.4474477999999635),
     'Pasteur': ('https://mamp.parkings-semepa.fr/', 215, 650, 43.5336148, 5.4460137),
     'Rambot': ('https://parkings-semepa.fr/', 221, 400, 43.5304833, 5.4580851),
     'Rotonde': ('https://parkings-semepa.fr/', 206, 1800, 43.5264049, 5.4436793),
