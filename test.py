@@ -67,10 +67,11 @@ def scraper_parkings():
             
             if match_nombre:
                 places_libres = int(match_nombre.group(1))
+                affichage = "COMPLET" if places_libres == 0 else f"{places_libres} / {capacite}"
                 data[nom] = {
                     'Places': places_libres,
                     'Capacite': capacite,
-                    'Affichage': f"{places_libres} / {capacite}",
+                    'Affichage': affichage,
                     'Statut': '✅ Ouvert',
                     'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
                     'latitude': lat,
@@ -172,9 +173,18 @@ with col3:
 
 st.divider()
 
+# Déterminer la largeur: Streamlit repond à layout="wide"
+# Sur mobile, Streamlit réduit automatiquement. On crée des colonnes
+# qui vont collapse sur mobile mais garder 3 sur desktop
+
 cols = st.columns(3)
 
-for idx, (nom, row) in enumerate(df.iterrows()):
+# Créer une liste des éléments triés
+items = list(df.iterrows())
+
+# Sur desktop (3 colonnes): remplir colonne par colonne
+# Sur mobile: Streamlit affichera en liste verticale automatiquement
+for idx, (nom, row) in enumerate(items):
     col = cols[idx % 3]
     
     with col:
@@ -189,8 +199,16 @@ for idx, (nom, row) in enumerate(df.iterrows()):
 
 st.divider()
 
-# ===== MAP FOLIUM =====
+# ===== MAP INTERACTIVE GOOGLE MAPS =====
 st.subheader("🗺️ Localisation des parkings")
+
+# Créer la map Folium avec tuiles Google Maps Satellite
+m = folium.Map(
+    location=[43.52829276, 5.4525416],
+    zoom_start=15,
+    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attr="Google"
+)
 
 # Fonction pour obtenir la couleur
 def get_color(places, capacite):
@@ -199,35 +217,26 @@ def get_color(places, capacite):
         return 'gray'
     taux = places / capacite
     if taux > 0.5:
-        return 'green'
+        return 'green'  # Vert - beaucoup de places
     elif taux > 0.2:
-        return 'orange'
+        return 'orange'  # Orange - places limitées
     else:
-        return 'red'
+        return 'red'  # Rouge - presque plein
 
-# Créer la map avec Folium - style Google Maps
-m = folium.Map(
-    location=[43.52829276, 5.4525416],
-    zoom_start=15,
-    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    attr="Google"
-)
-
-# Ajouter les marqueurs
+# Ajouter les marqueurs pour chaque parking
 for nom, row in df.iterrows():
     color = get_color(int(row['Places']), int(row['Capacite']))
-    taux = round((int(row['Places']) / int(row['Capacite'])) * 100)
     
     popup_text = f"""
     <b>{nom}</b><br/>
     Places: {int(row['Places'])}/{int(row['Capacite'])}<br/>
-    Taux: {taux}%<br/>
+    Statut: {row['Statut']}<br/>
     MAJ: {row['Timestamp']}
     """
     
     folium.CircleMarker(
         location=[row['latitude'], row['longitude']],
-        radius=14,
+        radius=15,
         popup=folium.Popup(popup_text, max_width=250),
         tooltip=f"{nom}: {int(row['Places'])}/{int(row['Capacite'])}",
         color=color,
