@@ -44,15 +44,24 @@ def load_cache():
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r') as f:
-                return json.load(f)
+                cache = json.load(f)
+                # Gérer ancien format (données directes) et nouveau format (avec timestamp)
+                if isinstance(cache, dict) and 'parkings' in cache:
+                    return cache['parkings'], cache.get('last_update', 'N/A')
+                else:
+                    return cache, 'N/A'
         except:
-            return {}
-    return {}
+            return {}, 'N/A'
+    return {}, 'N/A'
 
 def save_cache(data):
-    """Sauvegarde les données dans le cache"""
+    """Sauvegarde les données dans le cache avec timestamp"""
+    cache_data = {
+        'parkings': data,
+        'last_update': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
+    }
     with open(CACHE_FILE, 'w') as f:
-        json.dump(data, f)
+        json.dump(cache_data, f)
 
 def scraper_parkings():
     """Scrape tous les parkings"""
@@ -67,10 +76,11 @@ def scraper_parkings():
             
             if match_nombre:
                 places_libres = int(match_nombre.group(1))
+                affichage = "COMPLET" if places_libres == 0 else f"{places_libres} / {capacite}"
                 data[nom] = {
                     'Places': places_libres,
                     'Capacite': capacite,
-                    'Affichage': f"{places_libres} / {capacite}",
+                    'Affichage': affichage,
                     'Statut': '✅ Ouvert',
                     'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
                     'latitude': lat,
@@ -134,13 +144,14 @@ if 'scraper_started' not in st.session_state:
     st.session_state.scraper_started = True
     print("🚀 Thread de scraping lancé en background")
 
-cached_data = load_cache()
+cached_data, last_update_time = load_cache()
 
 if not cached_data:
     st.info("🔄 Première initialisation... Chargement des données...")
     with st.spinner("Récupération des données en cours..."):
         cached_data = scraper_parkings()
         save_cache(cached_data)
+        cached_data, last_update_time = load_cache()
     st.success("✅ Chargement des données terminé!")
 
 col1, col2, col3 = st.columns([1, 1, 1])
@@ -149,6 +160,7 @@ with col2:
         with st.spinner("Récupération des données..."):
             cached_data = scraper_parkings()
             save_cache(cached_data)
+            cached_data, last_update_time = load_cache()
         st.success("✅ Données mises à jour!")
         st.rerun()
 
@@ -166,8 +178,7 @@ with col2:
     st.metric("Parkings ouverts", f"{open_count}/9")
 
 with col3:
-    last_update = df['Timestamp'].iloc[0] if len(df) > 0 else "N/A"
-    st.metric("Dernière mise à jour", last_update)
+    st.metric("Dernière mise à jour", last_update_time)
     st.caption(f"🕐 {datetime.now(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y')}")
 
 st.divider()
