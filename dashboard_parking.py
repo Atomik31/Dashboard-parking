@@ -38,30 +38,48 @@ headers = {
 }
 
 CACHE_FILE = 'parkings_cache.json'
+TIMESTAMP_FILE = 'last_update.txt'
 
 def load_cache():
     """Charge les données du cache"""
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r') as f:
-                cache = json.load(f)
-                # Gérer ancien format (données directes) et nouveau format (avec timestamp)
-                if isinstance(cache, dict) and 'parkings' in cache:
-                    return cache['parkings'], cache.get('last_update', 'N/A')
-                else:
-                    return cache, 'N/A'
+                return json.load(f)
         except:
-            return {}, 'N/A'
-    return {}, 'N/A'
+            return {}
+    return {}
 
 def save_cache(data):
-    """Sauvegarde les données dans le cache avec timestamp"""
-    cache_data = {
-        'parkings': data,
-        'last_update': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S")
-    }
+    """Sauvegarde les données dans le cache"""
     with open(CACHE_FILE, 'w') as f:
-        json.dump(cache_data, f)
+        json.dump(data, f)
+    # Sauvegarder aussi le timestamp dans un fichier séparé
+    with open(TIMESTAMP_FILE, 'w') as f:
+        f.write(datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"))
+
+import hashlib
+
+def get_timestamp_hash():
+    """Récupère le hash du fichier timestamp pour détecter les changements"""
+    if os.path.exists(TIMESTAMP_FILE):
+        try:
+            with open(TIMESTAMP_FILE, 'r') as f:
+                content = f.read().strip()
+            return hashlib.md5(content.encode()).hexdigest()
+        except:
+            return "error"
+    return "notfound"
+
+def load_timestamp():
+    """Charge le timestamp de la dernière mise à jour"""
+    if os.path.exists(TIMESTAMP_FILE):
+        try:
+            with open(TIMESTAMP_FILE, 'r') as f:
+                return f.read().strip()
+        except:
+            return "N/A"
+    return "N/A"
 
 def scraper_parkings():
     """Scrape tous les parkings"""
@@ -124,7 +142,10 @@ def scraper_parkings():
     return data
 
 def scraper_background():
-    """Fonction qui scrape en arrière-plan toutes les 10 mins"""
+    """Fonction qui scrape en arrière-plan toutes les 2 mins"""
+    print("⏳ Scraper en attente de 2 minutes avant le premier scrape...")
+    time.sleep(120)
+    print("✅ Début du scraping!")
     while True:
         try:
             now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y %H:%M:%S")
@@ -136,23 +157,32 @@ def scraper_background():
         except Exception as e:
             print(f"Erreur lors du scraping: {e}")
         
+        print("⏳ Scraper en attente de 10 minutes avant le prochain scrape...")
         time.sleep(600)
+        print("✅ Scrape suivant!")
 
-if 'scraper_started' not in st.session_state:
+# Lancer le thread de scraping une seule fois par processus
+if 'SCRAPER_STARTED' not in os.environ:
+    os.environ['SCRAPER_STARTED'] = '1'
     scraper_thread = threading.Thread(target=scraper_background, daemon=True)
     scraper_thread.start()
-    st.session_state.scraper_started = True
     print("🚀 Thread de scraping lancé en background")
 
-cached_data, last_update_time = load_cache()
+cached_data = load_cache()
 
 if not cached_data:
     st.info("🔄 Première initialisation... Chargement des données...")
     with st.spinner("Récupération des données en cours..."):
         cached_data = scraper_parkings()
         save_cache(cached_data)
-        cached_data, last_update_time = load_cache()
     st.success("✅ Chargement des données terminé!")
+
+# Lire directement le contenu du fichier timestamp
+if os.path.exists(TIMESTAMP_FILE):
+    with open(TIMESTAMP_FILE, 'r') as f:
+        last_update_display = f.read().strip()
+else:
+    last_update_display = "N/A"
 
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
@@ -160,7 +190,6 @@ with col2:
         with st.spinner("Récupération des données..."):
             cached_data = scraper_parkings()
             save_cache(cached_data)
-            cached_data, last_update_time = load_cache()
         st.success("✅ Données mises à jour!")
         st.rerun()
 
@@ -178,8 +207,7 @@ with col2:
     st.metric("Parkings ouverts", f"{open_count}/9")
 
 with col3:
-    st.metric("Dernière mise à jour", last_update_time)
-    st.caption(f"🕐 {datetime.now(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y')}")
+    st.metric("Dernière mise à jour", last_update_display)
 
 st.divider()
 
