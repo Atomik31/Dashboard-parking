@@ -247,7 +247,7 @@ def get_color(places, capacite):
     taux = places / capacite
     if taux > 0.5:
         return 'green'  # Vert - beaucoup de places
-    elif taux > 0.2:
+    elif taux > 0.1:
         return 'orange'  # Orange - places limitées
     else:
         return 'red'  # Rouge - presque plein
@@ -282,9 +282,9 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
 with col2:
-    st.markdown("🟠 **20-50%** - Places limitées")
+    st.markdown("🟠 **10-50%** - Places limitées")
 with col3:
-    st.markdown("🔴 **Moins de 20%** - Presque plein")
+    st.markdown("🔴 **Moins de 10%** - Presque plein")
 
 st.divider()
 
