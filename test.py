@@ -94,7 +94,7 @@ def scraper_parkings():
             
             if match_nombre:
                 places_libres = int(match_nombre.group(1))
-                affichage = "COMPLET" if places_libres == 0 else f"{places_libres} / {capacite}"
+                affichage = "COMPLET" if places_libres <= 2 else f"{places_libres} / {capacite}"
                 data[nom] = {
                     'Places': places_libres,
                     'Capacite': capacite,
@@ -105,16 +105,30 @@ def scraper_parkings():
                     'longitude': lon
                 }
             elif match_texte:
-                statut = match_texte.group(1)
-                data[nom] = {
-                    'Places': 0,
-                    'Capacite': capacite,
-                    'Affichage': statut,
-                    'Statut': f'⚠️ {statut}',
-                    'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
-                    'latitude': lat,
-                    'longitude': lon
-                }
+                statut = match_texte.group(1).strip()
+                
+                # Si le texte est "COMPLET", on le traite comme un parking ouvert
+                if statut.upper() == "COMPLET":
+                    data[nom] = {
+                        'Places': 0,
+                        'Capacite': capacite,
+                        'Affichage': 'COMPLET',
+                        'Statut': '✅ Ouvert',
+                        'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                        'latitude': lat,
+                        'longitude': lon
+                    }
+                else:
+                    # Sinon c'est un vrai message d'erreur/fermeture
+                    data[nom] = {
+                        'Places': 0,
+                        'Capacite': capacite,
+                        'Affichage': statut,
+                        'Statut': f'⚠️ {statut}',
+                        'Timestamp': datetime.now(ZoneInfo("Europe/Paris")).strftime("%H:%M:%S"),
+                        'latitude': lat,
+                        'longitude': lon
+                    }
             else:
                 data[nom] = {
                     'Places': 0,
@@ -231,7 +245,7 @@ st.divider()
 # ===== MAP INTERACTIVE GOOGLE MAPS =====
 st.subheader("🗺️ Localisation des parkings")
 
-# Créer la map Folium avec tuiles Google Maps Satellite
+# Créer la map Folium avec tuiles Google Maps
 m = folium.Map(
     location=[43.52829276, 5.4525416],
     zoom_start=15,
@@ -239,26 +253,32 @@ m = folium.Map(
     attr="Google"
 )
 
-# Fonction pour obtenir la couleur
-def get_color(places, capacite):
-    """Retourne la couleur selon le taux de remplissage"""
-    if capacite == 0:
+# Fonction pour obtenir la couleur selon le statut
+def get_color(statut, places, capacite):
+    """Retourne la couleur selon le statut et le taux de remplissage"""
+    # Si pas ouvert, retourner gris
+    if statut != '✅ Ouvert':
         return 'gray'
+    
+    # Si ouvert, calculer le taux
+    #if capacite == 0:
+    #    return 'gray'
+    
     taux = places / capacite
     if taux > 0.5:
         return 'green'  # Vert - beaucoup de places
-    elif taux > 0.2:
+    elif taux > 0.1:
         return 'orange'  # Orange - places limitées
     else:
         return 'red'  # Rouge - presque plein
 
 # Ajouter les marqueurs pour chaque parking
 for nom, row in df.iterrows():
-    color = get_color(int(row['Places']), int(row['Capacite']))
+    color = get_color(row['Statut'], int(row['Places']), int(row['Capacite']))
     
     popup_text = f"""
     <b>{nom}</b><br/>
-    Places: {int(row['Places'])}/{int(row['Capacite'])}<br/>
+    Places: {row['Affichage']}<br/>
     Statut: {row['Statut']}<br/>
     MAJ: {row['Timestamp']}
     """
@@ -267,7 +287,7 @@ for nom, row in df.iterrows():
         location=[row['latitude'], row['longitude']],
         radius=15,
         popup=folium.Popup(popup_text, max_width=250),
-        tooltip=f"{nom}: {int(row['Places'])}/{int(row['Capacite'])}",
+        tooltip=f"{nom}: {row['Affichage']}",
         color=color,
         fill=True,
         fillColor=color,
@@ -282,9 +302,9 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
 with col2:
-    st.markdown("🟠 **20-50%** - Places limitées")
+    st.markdown("🟠 **10-50%** - Places limitées")
 with col3:
-    st.markdown("🔴 **Moins de 20%** - Presque plein")
+    st.markdown("🔴 **Moins de 10%** - Presque plein")
 
 st.divider()
 
