@@ -298,13 +298,15 @@ for nom, row in df.iterrows():
 # Afficher la map
 st_folium(m, width=1600, height=600)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
 with col2:
     st.markdown("🟠 **10-50%** - Places limitées")
 with col3:
     st.markdown("🔴 **Moins de 10%** - Presque plein")
+with col4:
+    st.markdown("⚫ **Parking Hors Service**")
 
 st.divider()
 
