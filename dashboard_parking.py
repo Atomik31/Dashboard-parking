@@ -94,7 +94,7 @@ def scraper_parkings():
             
             if match_nombre:
                 places_libres = int(match_nombre.group(1))
-                affichage = "COMPLET" if places_libres == 0 else f"{places_libres} / {capacite}"
+                affichage = "COMPLET" if places_libres <= 2 else f"{places_libres} / {capacite}"
                 data[nom] = {
                     'Places': places_libres,
                     'Capacite': capacite,
