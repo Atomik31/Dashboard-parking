@@ -304,7 +304,7 @@ with col1:
 with col2:
     st.markdown("🟠 **10-50%** - Places limitées")
 with col3:
-    st.markdown("🔴 **Moins de 10%** - Presque plein")
+    st.markdown("🔴 **Moins de 10%** - Presque plein    ⚫ **Parking Hors Service")
 
 st.divider()
 
