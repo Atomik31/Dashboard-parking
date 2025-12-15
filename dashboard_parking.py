@@ -18,24 +18,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS pour responsive : centered sur desktop, full-width sur mobile
-st.markdown("""
-    <style>
-        .main .block-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        @media (max-width: 768px) {
-            .main .block-container {
-                max-width: 100%;
-                padding-left: 1rem;
-                padding-right: 1rem;
-            }
-        }
-    </style>
-""", unsafe_allow_html=True)
-
 st.title("🅿️ Parkings Aix-en-Provence")
 st.subheader("Places disponibles en temps réel")
 
@@ -310,9 +292,9 @@ for nom, row in df.iterrows():
         weight=2
     ).add_to(m)
 
-# Afficher la map en full-width
-st_folium(m, height=600, width=int(st.session_state.get('width', 800)))
-    
+# Afficher la map
+st_folium(m, height=600)
+
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
