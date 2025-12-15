@@ -314,7 +314,7 @@ for nom, row in df.iterrows():
 map_col = st.columns(1)[0]
 with map_col:
     st_folium(m, width=None, height=800, use_container_width=True)
-
+    
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
