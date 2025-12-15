@@ -293,7 +293,7 @@ for nom, row in df.iterrows():
     ).add_to(m)
 
 # Afficher la map
-st_folium(m, height=600)
+st_folium(m, height=600, width=700)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
