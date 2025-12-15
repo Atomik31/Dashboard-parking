@@ -18,6 +18,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# CSS pour responsive : centered sur desktop, full-width sur mobile
+st.markdown("""
+    <style>
+        .main .block-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        @media (max-width: 768px) {
+            .main .block-container {
+                max-width: 100%;
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("🅿️ Parkings Aix-en-Provence")
 st.subheader("Places disponibles en temps réel")
 
@@ -261,9 +279,6 @@ def get_color(statut, places, capacite):
         return 'gray'
     
     # Si ouvert, calculer le taux
-    #if capacite == 0:
-    #    return 'gray'
-    
     taux = places / capacite
     if taux > 0.5:
         return 'green'  # Vert - beaucoup de places
@@ -295,8 +310,10 @@ for nom, row in df.iterrows():
         weight=2
     ).add_to(m)
 
-# Afficher la map
-st_folium(m, width=1600, height=600)
+# Afficher la map en full-width
+map_col = st.columns(1)[0]
+with map_col:
+    st_folium(m, width=None, height=800, use_container_width=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
