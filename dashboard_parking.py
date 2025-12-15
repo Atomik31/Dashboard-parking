@@ -311,7 +311,7 @@ for nom, row in df.iterrows():
     ).add_to(m)
 
 # Afficher la map en full-width
-st_folium(m, height=800, width=800)
+st_folium(m, height=600, width=int(st.session_state.get('width', 800)))
     
 col1, col2, col3, col4 = st.columns(4)
 with col1:
