@@ -14,7 +14,7 @@ from streamlit_folium import st_folium
 st.set_page_config(
     page_title="Parkings Aix-en-Provence",
     page_icon="🅿️",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="collapsed"
 )
 
