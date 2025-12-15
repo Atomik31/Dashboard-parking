@@ -311,14 +311,9 @@ for nom, row in df.iterrows():
     ).add_to(m)
 
 # Afficher la map en full-width
-st.markdown("""
-    <style>
-        iframe {
-            width: 100% !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-st_folium(m, height=600)
+map_col = st.columns(1)[0]
+with map_col:
+    st_folium(m, width=None, height=800, use_container_width=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
