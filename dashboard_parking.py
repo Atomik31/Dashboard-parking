@@ -313,7 +313,7 @@ for nom, row in df.iterrows():
 # Afficher la map en full-width
 map_col = st.columns(1)[0]
 with map_col:
-    st_folium(m, width=None, height=600, use_container_width=True)
+    st_folium(m, height=800, use_container_width=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
