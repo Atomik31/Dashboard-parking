@@ -26,8 +26,8 @@ https://dashboard-parking.streamlit.app/
 
 1. **Cloner le repo**
 ```bash
-git clone https://github.com/tonusername/parking-dashboard.git
-cd parking-dashboard
+git clone https://github.com/Atomik31/Dashboard-parking.git
+cd Dashboard-parking
 ```
 
 2. **Installer les dépendances**
@@ -80,7 +80,7 @@ Sites Semepa → Scraping HTML → Extraction Regex → Cache JSON → Dashboard
 ## 📊 Fichiers du projet
 
 ```
-parking-dashboard/
+Dashboard-parking/
 ├── dashboard_parking.py            # Fichier principal (Streamlit)
 ├── requirements.txt                # Dépendances Python
 ├── parkings_cache.json             # Cache des données (généré)
