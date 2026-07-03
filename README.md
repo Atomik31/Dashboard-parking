@@ -1,14 +1,4 @@
----
-title: Parkings Aix-en-Provence
-emoji: 🅿️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 8501
-pinned: false
----
-
-# 🅿️ Dashboard Parkings Aix-en-Provence
+🅿️ Dashboard Parkings Aix-en-Provence
 
 Un dashboard web en temps réel pour consulter la disponibilité des places de parking à Aix-en-Provence.
 
@@ -28,7 +18,7 @@ Le dashboard affiche :
 Le dashboard est déployé sur **Streamlit Cloud** et accessible gratuitement :
 
 ```
-https://dashboard-parking.streamlit.app/
+https://atomik31-dashboard-parking-aix.hf.space/
 ```
 
 ## 📦 Installation locale
