@@ -1,0 +1,33 @@
+name: Scrape parkings
+
+on:
+  schedule:
+    # Toutes les 10 minutes (les crons GitHub peuvent dériver de quelques minutes)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scrape-parkings
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Installer les dépendances
+        run: pip install requests boto3
+
+      - name: Scraper et archiver vers S3
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: python -m scripts.scrape_to_s3
