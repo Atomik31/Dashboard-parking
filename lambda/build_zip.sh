@@ -8,7 +8,10 @@ cd "$(dirname "$0")/.."
 rm -rf build/lambda dist
 mkdir -p build/lambda dist
 
-python3 -m pip install --quiet --target build/lambda requests
+# Cibler la plateforme des Lambda (Linux ARM64 / Graviton), pas celle du poste de build
+python3 -m pip install --quiet --target build/lambda \
+    --platform manylinux2014_aarch64 --implementation cp \
+    --python-version 3.13 --only-binary=:all: requests
 cp -r parking_dashboard build/lambda/
 cp lambda/lambda_function.py build/lambda/
 

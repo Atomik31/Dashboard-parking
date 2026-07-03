@@ -8,223 +8,118 @@ app_port: 8501
 pinned: false
 ---
 
-#🅿️ Dashboard Parkings Aix-en-Provence
+# 🅿️ Dashboard Parkings Aix-en-Provence
 
-Un dashboard web en temps réel pour consulter la disponibilité des places de parking à Aix-en-Provence.
+Disponibilité en temps réel des 9 parkings publics d'Aix-en-Provence (Bellegarde, Cardeurs, Carnot, Méjanes, Mignet, Pasteur, Rambot, Rotonde, Signoret), avec un historique d'occupation collecté toutes les 10 minutes et archivé sur S3.
 
-## 📸 Aperçu
+**Démo :** https://atomik31-dashboard-parking-aix.hf.space/
 
-Le dashboard affiche :
-- **9 parkings** gérés par Semepa (Bellegarde, Cardeurs, Carnot, Méjanes, Mignet, Pasteur, Rambot, Rotonde, Signoret)
-- **Places disponibles** actualisées automatiquement
-- **Total des places** disponibles en temps réel
-- **Statut** de chaque parking (Ouvert, Fermeture temporaire, etc.)
-- **Carte interactive** avec code couleur selon le taux de remplissage
-- **Graphique d'historique** (1 h / 6 h / 12 h / 24 h) alimenté par les relevés archivés sur S3
-- **Dernière mise à jour** des données
+## La problématique
 
-## 🚀 Déploiement
+À Aix-en-Provence, l'information de disponibilité des parkings publics existe… mais elle est éclatée : chaque parking a sa propre page sur les sites de la Semepa (répartis sur deux domaines), sans vue d'ensemble, sans carte, et sans aucun historique. Pour un automobiliste, impossible de répondre en un coup d'œil aux questions utiles : *où reste-t-il de la place près de ma destination ? est-ce que ça vaut le coup de viser les Cardeurs à cette heure-ci, ou est-il toujours plein le samedi matin ?*
 
-Le dashboard est déployé sur **Streamlit Cloud** et accessible gratuitement :
+Ce projet centralise cette information dispersée en un point unique :
+
+- **une vue consolidée** des 9 parkings (places disponibles, statut, total) au lieu de 9 pages à consulter une par une ;
+- **une carte** pour raisonner par destination plutôt que par nom de parking ;
+- **un historique** collecté toutes les 10 minutes, qui transforme une donnée volatile (la page Semepa n'affiche que l'instant présent) en une série temporelle exploitable, visualisation des tendances aujourd'hui, analyse des habitudes et prédiction de disponibilité demain.
+
+Le dashboard affiche les places disponibles parking par parking, une carte interactive avec code couleur selon le taux de remplissage, et un graphique d'historique consultable sur 1 h, 6 h, 12 h ou 24 h (en places libres ou en taux d'occupation).
+
+## Architecture
+
+Le projet sépare strictement deux flux de données qui n'ont pas les mêmes contraintes :
 
 ```
-https://atomik31-dashboard-parking-aix.hf.space/
+                       ┌─> Cache Streamlit (TTL 10 min) ──> Affichage temps réel
+Sites Semepa ── Scraping (regex)
+                       └─> EventBridge ──> Lambda ──> S3 (parkings.csv) ──> Graphique historique
+                            rate(10 min)                     └──> RDS / analyse / prédiction (à venir)
 ```
 
-## 📦 Installation locale
+**Le flux temps réel** vit dans l'application Streamlit : le premier visiteur déclenche un scrape, le résultat est partagé entre toutes les sessions pendant 10 minutes (`st.cache_data`). Si personne ne visite le dashboard, aucune requête n'est envoyée aux sites sources.
 
-1. **Cloner le repo**
-```bash
-git clone https://github.com/Atomik31/Dashboard-parking.git
-cd Dashboard-parking
-```
+**Le flux historique** est totalement découplé de l'application : une fonction AWS Lambda, déclenchée par EventBridge Scheduler toutes les 10 minutes, scrape les 9 parkings et ajoute un relevé au fichier `history/parkings.csv` du bucket S3. Le dashboard n'est qu'un *lecteur* de ce fichier, il peut être en veille, planté ou redéployé sans qu'aucune donnée ne soit perdue.
 
-2. **Installer les dépendances**
-```bash
-pip install -r requirements.txt
-```
+### Pourquoi Lambda plutôt qu'un cron GitHub Actions ?
 
-3. **Lancer le dashboard**
-```bash
-python -m streamlit run dashboard_parking.py
-```
+La première version de la collecte tournait sur un cron GitHub Actions (`*/10 * * * *`). En pratique, GitHub traite les workflows planifiés en basse priorité : sur une journée de test, seuls 2 déclenchements sur ~30 attendus ont eu lieu. Après un correctif partiel (minutes décalées, relevés groupés), la collecte a été migrée vers EventBridge Scheduler + Lambda, ponctuels à la minute. Le workflow GitHub (`scrape-parkings.yml`) est conservé **désactivé** : c'est le plan de secours, réactivable en un clic si la fonction Lambda devait être indisponible. Règle absolue : **un seul écrivain à la fois**, le fichier étant réécrit à chaque relevé (S3 ne fait pas d'append), deux collecteurs concurrents s'écraseraient mutuellement.
 
-4. **Accéder au dashboard**
-```
-http://localhost:8501
-```
+### Le format de l'historique
 
-## 🐳 Déploiement avec Docker
-
-Le projet est conteneurisé : il se déploie à l'identique sur n'importe quelle machine disposant de Docker (serveur perso, VPS, cloud...), sans installer Python ni les dépendances.
-
-### Construire l'image
-
-```bash
-docker build -t dashboard-parking .
-```
-
-### Lancer le conteneur
-
-```bash
-docker run -d -p 8501:8501 --name dashboard-parking --restart unless-stopped dashboard-parking
-```
-
-Le dashboard est alors accessible sur `http://localhost:8501` (ou `http://IP_DU_SERVEUR:8501` depuis l'extérieur).
-
-Options utilisées :
-- `-d` — exécution en arrière-plan (détaché)
-- `-p 8501:8501` — expose le port du dashboard sur la machine hôte
-- `--restart unless-stopped` — redémarrage automatique après un reboot ou un crash
-
-### Commandes utiles
-
-```bash
-docker logs -f dashboard-parking      # Suivre les logs (scraping, erreurs)
-docker ps                             # Vérifier l'état (healthy grâce au HEALTHCHECK)
-docker stop dashboard-parking         # Arrêter le conteneur
-docker rm dashboard-parking           # Supprimer le conteneur
-```
-
-### Mettre à jour après une modification du code
-
-```bash
-docker stop dashboard-parking && docker rm dashboard-parking
-docker build -t dashboard-parking .
-docker run -d -p 8501:8501 --name dashboard-parking --restart unless-stopped dashboard-parking
-```
-
-### Déployer sur un serveur distant
-
-```bash
-# Sur le serveur (avec Docker installé) :
-git clone https://github.com/Atomik31/Dashboard-parking.git
-cd Dashboard-parking
-docker build -t dashboard-parking .
-docker run -d -p 8501:8501 --name dashboard-parking --restart unless-stopped dashboard-parking
-```
-
-## 🛠️ Comment ça marche
-
-**1. 🕷️ Scraping** (`parking_dashboard/scraper.py`)
-- Récupère les pages HTML des sites Semepa
-- Parse le HTML avec des expressions régulières (regex)
-- Extrait le nombre de places disponibles et le statut de chaque parking
-
-**2. 📦 Cache** (`st.cache_data`)
-- Le résultat du scraping est mis en cache **10 minutes** côté serveur
-- Le cache est partagé entre tous les visiteurs : un seul scrape par période, quel que soit le nombre de sessions
-- Le bouton « Rafraîchir maintenant » invalide le cache et force un nouveau scrape
-
-**3. 📊 Affichage** (`dashboard_parking.py`)
-- Métriques globales, cartes par parking, carte interactive Folium et graphique d'historique
-
-**4. 🗄️ Historique** (`lambda/` + `parking_dashboard/storage.py`)
-- AWS Lambda (déclenchée par EventBridge toutes les 10 min) scrape indépendamment du dashboard
-- Chaque relevé est ajouté à un fichier CSV unique sur S3 (`history/parkings.csv`), au schéma prêt pour l'analyse :
+Un seul fichier CSV, pensé pour être importé tel quel dans une base relationnelle :
 
 | timestamp_utc | date | heure | parking | places_dispo | places_total | statut |
 |---|---|---|---|---|---|---|
 | 2026-07-03T16:21:14+00:00 | 2026-07-03 | 18:21:14 | Rotonde | 553 | 1800 | ✅ Ouvert |
 
-- `timestamp_utc` (ISO 8601) sert de clé canonique ; `date`/`heure` sont en heure de Paris pour l'analyse
-- Un seul fichier = ingestion directe dans une base (RDS, DuckDB, pandas) pour l'analyse ou la prédiction
-- Le dashboard lit ce fichier pour tracer les variations d'occupation
+Le temps est stocké deux fois, et c'est voulu : `timestamp_utc` est la référence canonique (tri, déduplication, fenêtres temporelles, insensible aux changements d'heure), tandis que `date` et `heure` en heure de Paris servent l'analyse métier (« quel taux d'occupation à 11 h ? »). Clé primaire naturelle : `(timestamp_utc, parking)`.
 
-```
-                    ┌─> Cache Streamlit (TTL 10 min) ──> Affichage temps réel
-Sites Semepa ── Scraping HTML ── Extraction Regex
-                    └─> Lambda (EventBridge 10 min) ──> S3 (CSV unique) ──> Graphique historique
-                                                              └──> RDS / analyse / prédiction
-```
+Volumétrie : ~53 000 relevés/an (6/heure), soit ~475 000 lignes ≈ 40 Mo. Coût AWS total (Lambda + EventBridge + S3) : quelques centimes par an, couvert par le free tier permanent de Lambda.
 
-### Technologies utilisées
-
-- **Requests** — récupération des pages web
-- **Regex** — extraction des données
-- **Pandas** — mise en forme des données
-- **Streamlit** — dashboard web et cache des données
-- **Folium** — carte interactive
-- **Plotly** — graphique d'historique interactif
-- **GitHub Actions + boto3 / S3** — collecte planifiée et archivage de l'historique
-- **Pytest** — tests unitaires (parsing, stockage)
-
-## 📊 Structure du projet
+## Structure du projet
 
 ```
 Dashboard-parking/
 ├── dashboard_parking.py            # Point d'entrée Streamlit (UI uniquement)
-├── parking_dashboard/              # Package métier
-│   ├── __init__.py
+├── parking_dashboard/              # Package métier, testable sans Streamlit
 │   ├── config.py                   # Parkings, constantes, palette du graphique
 │   ├── scraper.py                  # Scraping et parsing des pages Semepa
-│   └── storage.py                  # Historique CSV sur S3 (ou dossier local en dev)
-├── scripts/
-│   └── scrape_to_s3.py             # Job planifié : scrape + archive un relevé
+│   └── storage.py                  # Historique CSV sur S3 (dossier local en dev)
 ├── lambda/
-│   ├── lambda_function.py          # Handler AWS Lambda (collecte serverless)
-│   └── build_zip.sh                # Construit le package de déploiement Lambda
+│   ├── lambda_function.py          # Handler AWS Lambda (collecte de production)
+│   └── build_zip.sh                # Package de déploiement (cible Linux ARM64)
+├── scripts/
+│   └── scrape_to_s3.py             # Même collecte en CLI (dev local, fallback CI)
 ├── .github/workflows/
-│   └── scrape-parkings.yml         # Cron GitHub Actions (secours, désactivé)
-├── tests/
-│   ├── test_scraper.py             # Tests unitaires (parsing, statuts)
-│   └── test_storage.py             # Tests unitaires (historique CSV)
-├── notebooks/
-│   └── parking.ipynb               # Notebook d'exploration
-├── .streamlit/
-│   └── config.toml                 # Thème du dashboard (identique partout)
-├── Dockerfile                      # Image Docker pour le déploiement
-├── .dockerignore                   # Fichiers exclus de l'image
+│   ├── scrape-parkings.yml         # Collecte de secours (désactivée)
+│   └── keep-space-awake.yml        # Ping anti-veille du Space HF (2x/jour)
+├── tests/                          # Pytest : parsing HTML, stockage, palette
+├── notebooks/parking.ipynb         # Exploration initiale du scraping
+├── .streamlit/config.toml          # Thème imposé (rendu identique partout)
+├── Dockerfile                      # Image non-root, healthcheck (Space HF / VPS)
 ├── requirements.txt                # Dépendances de production
-├── requirements-dev.txt            # Dépendances de développement (pytest)
-└── README.md                       # Documentation
+└── requirements-dev.txt            # + pytest
 ```
 
-## 🗄️ Historique S3 : mise en place
+Le cœur du projet est le package `parking_dashboard` : le scraping et le stockage n'importent pas Streamlit, ce qui permet de les réutiliser à l'identique dans trois contextes d'exécution, l'application web, la Lambda, et le script CLI, et de les tester sans réseau.
 
-L'historique repose sur un bucket S3 alimenté toutes les 10 minutes par AWS Lambda (voir la section « Collecte serverless » ; le workflow GitHub Actions est conservé en secours). Coût estimé : **moins de 0,50 € par an** (~50 Mo et ~52 000 écritures par an).
-
-### 1. Créer le bucket S3
-
-Dans la console AWS (région conseillée : `eu-west-3` Paris) : crée un bucket privé, par exemple `dashboard-parking-aix`. Aucune configuration particulière (pas d'accès public).
-
-### 2. Créer un utilisateur IAM dédié
-
-Crée un utilisateur IAM (ex: `dashboard-parking-bot`) **sans accès console**, avec une clé d'accès et cette politique minimale (remplace le nom du bucket) :
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject"],
-      "Resource": "arn:aws:s3:::dashboard-parking-aix/history/*"
-    }
-  ]
-}
-```
-
-### 3. Configurer les secrets GitHub
-
-Dans le repo GitHub : *Settings → Secrets and variables → Actions → New repository secret* :
-
-| Secret | Valeur |
-|---|---|
-| `S3_BUCKET` | nom du bucket (ex: `dashboard-parking-aix`) |
-| `AWS_ACCESS_KEY_ID` | clé de l'utilisateur IAM |
-| `AWS_SECRET_ACCESS_KEY` | clé secrète de l'utilisateur IAM |
-| `AWS_DEFAULT_REGION` | région du bucket (ex: `eu-west-3`) |
-
-Le workflow `scrape-parkings.yml` démarre alors automatiquement (onglet *Actions* pour vérifier ; il peut aussi être lancé à la main via *Run workflow*). Note : les crons GitHub peuvent dériver de quelques minutes aux heures de pointe.
-
-### 4. Donner l'accès en lecture au dashboard
-
-Le dashboard lit l'historique avec les mêmes variables d'environnement. Selon l'hébergement :
-- **Hugging Face Space** : *Settings → Variables and secrets* → ajouter les 4 mêmes variables
-- **Docker / VPS** : passer les variables au conteneur :
+## Installation locale
 
 ```bash
+git clone https://github.com/Atomik31/Dashboard-parking.git
+cd Dashboard-parking
+pip install -r requirements.txt
+streamlit run dashboard_parking.py     # http://localhost:8501
+```
+
+Sans configuration AWS, le dashboard fonctionne normalement ; seule la section historique affiche « Aucun historique disponible ». Pour la tester sans bucket, le collecteur sait écrire dans un dossier local :
+
+```bash
+python -m scripts.scrape_to_s3 --local   # alimente history/ (ignoré par git)
+```
+
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Les tests couvrent le parsing HTML (nombre de places, « COMPLET », fermeture, page sans données), la construction des statuts et le cycle d'écriture/lecture de l'historique sans dépendre du réseau ni d'AWS.
+
+## Déploiement
+
+### Dashboard — Hugging Face Space (Docker)
+
+Le Space construit le `Dockerfile` du repo (le front-matter en tête de ce README le configure : `sdk: docker`, `app_port: 8501`). L'image tourne non-root (exigence des Spaces) avec un healthcheck Streamlit. Pour donner au dashboard l'accès en lecture à l'historique : *Settings → Variables and secrets* du Space → `S3_BUCKET`, `AWS_DEFAULT_REGION` (variables), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (secrets — utilisateur IAM **lecteur**, `s3:GetObject` uniquement).
+
+Les Spaces gratuits s'endorment après 48 h sans trafic : le workflow `keep-space-awake.yml` pingue l'application deux fois par jour, et son échec déclenche un email ce qui en fait aussi une sonde de disponibilité gratuite.
+
+### Dashboard — Docker sur n'importe quelle machine
+
+```bash
+docker build -t dashboard-parking .
 docker run -d -p 8501:8501 --restart unless-stopped \
   -e S3_BUCKET=dashboard-parking-aix \
   -e AWS_ACCESS_KEY_ID=... \
@@ -233,137 +128,57 @@ docker run -d -p 8501:8501 --restart unless-stopped \
   --name dashboard-parking dashboard-parking
 ```
 
-Sans ces variables, le dashboard fonctionne normalement mais affiche « Aucun historique disponible » à la place du graphique.
+### Collecte — AWS Lambda + EventBridge
 
-### Développement local sans AWS
+1. **Bucket S3** privé (ex. `dashboard-parking-aix`, région `eu-west-3`), **Versioning activé** : le fichier unique étant réécrit toutes les 10 minutes, le versioning protège d'un écrasement accidentel. Ajouter une règle de cycle de vie qui purge les versions non courantes après 30 jours.
+2. **Rôle IAM** pour la fonction : `AWSLambdaBasicExecutionRole` (logs CloudWatch) + politique inline `s3:GetObject`/`s3:PutObject` limitée à `arn:aws:s3:::BUCKET/history/*`. Aucune clé d'accès dans la fonction : les permissions viennent du rôle d'exécution.
+3. **Package** : `./lambda/build_zip.sh` produit `dist/lambda-scraper.zip` (le package métier + `requests`, binaires ciblés `manylinux aarch64` ; boto3 est fourni par le runtime).
+4. **Fonction** : Python 3.13, architecture arm64, handler `lambda_function.lambda_handler`, timeout 120 s (le scrape prend ~20 s), 128 Mo, variable d'environnement `S3_BUCKET`.
+5. **Planification** : EventBridge Scheduler, `rate(10 minutes)`, fenêtre flexible désactivée, cible la fonction.
 
-Le job peut écrire dans un dossier local `history/` (ignoré par git) au lieu de S3 :
+Suivi dans CloudWatch Logs (`/aws/lambda/scrape-parkings`, rétention 30 jours suffisante).
 
-```bash
-python -m scripts.scrape_to_s3 --local
+## Exploiter les données
+
+Le CSV s'importe sans transformation :
+
+```sql
+-- PostgreSQL / RDS
+COPY parkings FROM '...' CSV HEADER;
 ```
-
-Le dashboard lira automatiquement ce dossier si `S3_BUCKET` n'est pas défini — pratique pour tester le graphique sans bucket.
-
-## ⚡ Collecte serverless : AWS Lambda + EventBridge
-
-La collecte de production tourne sur **AWS Lambda**, déclenchée par **EventBridge Scheduler** toutes les 10 minutes — fiable à la minute, contrairement aux crons GitHub Actions (conservés en secours, workflow désactivé). Coût : 0 € (free tier permanent Lambda, usage très en dessous des seuils).
-
-### Construire le package
-
-```bash
-./lambda/build_zip.sh        # produit dist/lambda-scraper.zip
-```
-
-Le zip contient le package `parking_dashboard` + `requests` (boto3 est déjà fourni par le runtime Lambda).
-
-### Déployer (console AWS, même région que le bucket)
-
-1. **Rôle IAM** : rôle de service Lambda avec `AWSLambdaBasicExecutionRole` (logs CloudWatch) + `s3:GetObject`/`s3:PutObject` sur `arn:aws:s3:::BUCKET/history/*`. Pas de clé d'accès : la fonction hérite des permissions de son rôle d'exécution.
-2. **Fonction Lambda** : runtime Python 3.13, handler `lambda_function.lambda_handler`, upload du zip, timeout **120 s**, mémoire 128 Mo, variable d'environnement `S3_BUCKET` (la région est fournie automatiquement par le runtime).
-3. **EventBridge Scheduler** : planification `rate(10 minutes)`, cible = la fonction Lambda.
-4. **Un seul écrivain** : désactiver le workflow GitHub « Scrape parkings » (onglet Actions → ⋯ → *Disable workflow*) pour éviter deux écritures concurrentes du fichier CSV.
-5. **Recommandé** : activer le **Versioning** sur le bucket S3 — l'historique tenant dans un seul fichier réécrit à chaque relevé, le versioning protège contre toute corruption ou écrasement accidentel.
-
-Les logs de chaque exécution sont dans CloudWatch Logs (`/aws/lambda/<nom-de-la-fonction>`).
-
-### Exploiter les données (RDS, analyse, prédiction)
-
-Le fichier `history/parkings.csv` s'importe tel quel :
-- **PostgreSQL/RDS** : `COPY parkings FROM ... CSV HEADER` (ou via `aws_s3.table_import_from_s3` sur RDS)
-- **pandas** : `pd.read_csv("s3://BUCKET/history/parkings.csv")`
-- **DuckDB** : `SELECT * FROM read_csv_auto('s3://BUCKET/history/parkings.csv')`
-
-Clé primaire naturelle : `(timestamp_utc, parking)`.
-
-## 🧪 Tests
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest
-```
-
-Les tests couvrent le parsing HTML (nombre de places, « COMPLET », fermeture, page sans données) et la construction des statuts, sans dépendre du réseau.
-
-## 🔧 Configuration
-
-Toute la configuration est centralisée dans `parking_dashboard/config.py` :
-
-### Modifier l'intervalle de rafraîchissement
-
 ```python
-# Actuellement 600 secondes (10 minutes)
-CACHE_TTL_SECONDES = 600
+# pandas
+df = pd.read_csv("s3://dashboard-parking-aix/history/parkings.csv")
+```
+```sql
+-- DuckDB
+SELECT parking, heure, avg(places_dispo)
+FROM read_csv_auto('s3://.../history/parkings.csv')
+GROUP BY parking, heure;
 ```
 
-### Ajouter/retirer des parkings
+## Configuration
 
-Modifie la liste `PARKINGS` :
-```python
-PARKINGS = [
-    Parking("Nom", "URL_BASE", PAGE_ID, CAPACITE, LATITUDE, LONGITUDE),
-    # ...
-]
+Tout est centralisé dans `parking_dashboard/config.py` : liste des parkings (URL, capacité, coordonnées GPS), TTL du cache, seuils d'affichage, palette du graphique (9 couleurs fixes, une par parking, validées pour le contraste et le daltonisme sur fond sombre).
+
+Le scraping extrait le nombre de places du HTML Semepa par expression régulière :
+
 ```
-
-## 📡 Scraping expliqué
-
-Le scraping utilise une **expression régulière (regex)** pour extraire le nombre de places :
-
-```regex
 <p class="nbPlaces"><span[^>]*>(\d+)</span>
 ```
 
-**Exemple HTML :**
-```html
-<p class="nbPlaces">
-  <span style="font-size:30px;color:#ae0a15;">205</span> 
-  places libres
-</p>
-```
+avec une pause de 0,5 s entre chaque parking pour ménager le site source. Aucune donnée personnelle n'est collectée : uniquement des compteurs publics.
 
-**Extraction :** `205`
+## Roadmap
 
-## 🐛 Dépannage
-
-### "Module not found"
-```bash
-pip install -r requirements.txt
-```
-
-### Les données semblent figées
-Le cache a une durée de vie de 10 minutes. Clique sur « 🔄 Rafraîchir maintenant » pour forcer une mise à jour immédiate.
-
-## 📈 Améliorations futures possibles
-
-- [x] Historique des données (graphiques temporels)
-- [ ] Notifications (SMS/Email) quand un parking se remplit
-- [ ] Prédictions de disponibilité (ML)
-- [ ] API REST pour utilisation tierce
-- [ ] Support multi-villes
+- [x] Historique des données (graphique temporel)
+- [x] Collecte serverless ponctuelle (Lambda + EventBridge)
+- [ ] Import RDS et analyse des patterns hebdomadaires
+- [ ] Prédiction de disponibilité (ML)
 - [ ] CI GitHub Actions (lint + tests)
+- [ ] Notifications quand un parking se remplit
 
-## 📝 Notes importantes
+## Licence & auteur
 
-- **Scraping légal :** Ce projet scrape des sites publics sans identification, avec une pause entre chaque requête et un cache de 10 minutes pour limiter la charge. Respecte les conditions d'utilisation des sites.
-- **Uptime Streamlit Cloud :** Gratuit mais avec limitations (app dormante après inactivité, redémarrage automatique à la première visite).
-
-## 🔐 Données récupérées
-
-Aucune donnée personnelle n'est collectée ni stockée. Seules les données publiques des parkings sont utilisées.
-
-## 📄 Licence
-
-Ce projet est open source. Libre d'utilisation et de modification.
-
-## 👨‍💻 Auteur
-
-Créé en décembre 2025 par Julien CHR
-
-## 🤝 Support
-
-Des questions ? Crée une issue sur GitHub ou contacte directement.
-
----
-
-**Dernière mise à jour :** Juillet 2026
+Projet open source, libre d'utilisation et de modification.
+Créé en décembre 2025 par **Julien CHARLIER** les questions et suggestions sont bienvenues via les issues GitHub.
