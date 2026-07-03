@@ -1,0 +1,19 @@
+name: Keep Space awake
+
+on:
+  schedule:
+    # Deux fois par jour (UTC) — largement assez face à la veille HF à 48 h d'inactivité
+    - cron: "0 6,18 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping du Space Hugging Face
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 https://atomik31-dashboard-parking-aix.hf.space/)
+          echo "Réponse du Space : HTTP $code"
+          # Échoue si le Space ne répond pas 200 -> GitHub envoie un email d'alerte
+          [ "$code" = "200" ]
