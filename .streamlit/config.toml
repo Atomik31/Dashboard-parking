@@ -1,0 +1,3 @@
+[theme]
+# Thème imposé pour un rendu identique partout (local, Docker, Streamlit Cloud)
+base = "dark"

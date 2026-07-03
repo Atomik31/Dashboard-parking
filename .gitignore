@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Fichiers générés à l'exécution (anciennes versions)
+parkings_cache.json
+last_update.txt
+
+# Historique local de développement (le vrai historique vit sur S3)
+history/
+
+# Tests / outils
+.pytest_cache/
+.ruff_cache/
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
