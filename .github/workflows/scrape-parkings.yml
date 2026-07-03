@@ -2,8 +2,11 @@ name: Scrape parkings
 
 on:
   schedule:
-    # Toutes les 10 minutes (les crons GitHub peuvent dériver de quelques minutes)
-    - cron: "*/10 * * * *"
+    # Deux déclenchements par heure, à des minutes décalées : les crons alignés
+    # (:00, :10, ...) sont les plus concurrencés et souvent sautés par GitHub.
+    # Chaque run prend ensuite 3 relevés espacés de ~10 min (voir NB_RELEVES),
+    # ce qui maintient la cadence de 10 min avec 3x moins de déclenchements.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -13,7 +16,10 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 25
+    env:
+      # 3 relevés par run planifié ; 1 seul pour un lancement manuel (test rapide)
+      NB_RELEVES: ${{ github.event_name == 'schedule' && 3 || 1 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,4 +36,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-        run: python -m scripts.scrape_to_s3
+        run: |
+          for i in $(seq 1 "$NB_RELEVES"); do
+            python -m scripts.scrape_to_s3
+            if [ "$i" -lt "$NB_RELEVES" ]; then
+              echo "⏳ Prochain relevé dans ~10 minutes ($i/$NB_RELEVES faits)..."
+              sleep 570
+            fi
+          done
