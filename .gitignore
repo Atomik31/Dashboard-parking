@@ -12,6 +12,9 @@ last_update.txt
 # Historique local de développement (le vrai historique vit sur S3)
 history/
 
+# Secrets locaux (ne jamais commiter)
+.streamlit/secrets.toml
+
 # Tests / outils
 .pytest_cache/
 .ruff_cache/

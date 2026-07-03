@@ -1,14 +1,21 @@
 FROM python:3.13-slim
 
+# Les Spaces Hugging Face exécutent le conteneur avec l'UID 1000 (non-root) ;
+# tourner non-root est de toute façon une bonne pratique partout.
+RUN useradd -m -u 1000 appuser
+USER appuser
+ENV HOME=/home/appuser \
+    PATH=/home/appuser/.local/bin:$PATH
+
 WORKDIR /app
 
 # Installer les dépendances d'abord pour profiter du cache de layers Docker
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=appuser requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-COPY parking_dashboard/ parking_dashboard/
-COPY .streamlit/ .streamlit/
-COPY dashboard_parking.py .
+COPY --chown=appuser parking_dashboard/ parking_dashboard/
+COPY --chown=appuser .streamlit/ .streamlit/
+COPY --chown=appuser dashboard_parking.py .
 
 EXPOSE 8501
 

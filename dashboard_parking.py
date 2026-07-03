@@ -196,9 +196,9 @@ else:
         font_color="#898781",
         legend=dict(title=None, orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=10, r=10, t=10, b=10),
-        xaxis=dict(gridcolor="#2c2c2a", title=None),
+        xaxis=dict(gridcolor="#3d3d43", title=None),
         yaxis=dict(
-            gridcolor="#2c2c2a",
+            gridcolor="#3d3d43",
             title=mesure,
             range=[0, 100] if mesure == "Occupation (%)" else None,
             rangemode="tozero",

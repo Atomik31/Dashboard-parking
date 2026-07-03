@@ -44,7 +44,7 @@ SEUIL_COMPLET = 2
 CENTRE_CARTE = (43.52829276, 5.4525416)
 
 # Couleur fixe par parking pour le graphique d'historique (même ordre que PARKINGS).
-# Palette validée pour le fond sombre (#0e1117) : contraste >= 3:1 et
+# Palette validée pour le fond sombre (#2B2B30) : contraste >= 3:1 et
 # séparation daltonisme des paires adjacentes ΔE >= 24.
 COULEURS_SERIES = [
     "#3987e5",  # Bellegarde
@@ -52,7 +52,7 @@ COULEURS_SERIES = [
     "#1795a9",  # Carnot
     "#d95926",  # Méjanes
     "#9085e9",  # Mignet
-    "#008300",  # Pasteur
+    "#009f00",  # Pasteur
     "#d55181",  # Rambot
     "#c98500",  # Rotonde
     "#199e70",  # Signoret

@@ -1,3 +1,13 @@
+---
+title: Parkings Aix-en-Provence
+emoji: 🅿️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 8501
+pinned: false
+---
+
 # 🅿️ Dashboard Parkings Aix-en-Provence
 
 Un dashboard web en temps réel pour consulter la disponibilité des places de parking à Aix-en-Provence.
