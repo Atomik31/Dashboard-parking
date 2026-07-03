@@ -1,7 +1,15 @@
-"""Historique des relevés : un fichier CSV par jour, stocké sur S3 ou en local.
+"""Historique des relevés : un fichier CSV unique, stocké sur S3 ou en local.
+
+Schéma pensé pour une ingestion ultérieure en base (RDS, DuckDB, pandas...) :
+
+    timestamp_utc, date, heure, parking, places_dispo, places_total, statut
+
+- timestamp_utc : ISO 8601 UTC — clé canonique pour trier/dédupliquer
+- date, heure   : heure locale Europe/Paris, pratiques pour l'analyse
+- places_dispo / places_total : entiers
 
 Le backend est choisi par l'environnement :
-- si S3_BUCKET est défini, lecture/écriture sur S3 (clés `history/AAAA-MM-JJ.csv`) ;
+- si S3_BUCKET est défini, lecture/écriture sur S3 (clé `history/parkings.csv`) ;
 - sinon, dans un dossier local (HISTORY_DIR, par défaut `history/`), pratique
   pour le développement et les tests.
 """
@@ -9,63 +17,60 @@ import csv
 import io
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from .config import TIMEZONE
 
 logger = logging.getLogger(__name__)
 
-COLONNES = ["timestamp_utc", "parking", "places", "capacite", "statut"]
-PREFIXE_S3 = "history/"
+COLONNES = ["timestamp_utc", "date", "heure", "parking", "places_dispo", "places_total", "statut"]
+CLE_S3 = "history/parkings.csv"
 DOSSIER_LOCAL_DEFAUT = "history"
+NOM_FICHIER = "parkings.csv"
 
 
 def _bucket() -> str | None:
     return os.environ.get("S3_BUCKET") or None
 
 
-def _dossier_local() -> str:
-    return os.environ.get("HISTORY_DIR", DOSSIER_LOCAL_DEFAUT)
+def _chemin_local() -> str:
+    return os.path.join(os.environ.get("HISTORY_DIR", DOSSIER_LOCAL_DEFAUT), NOM_FICHIER)
 
 
-def _nom_fichier(jour: date) -> str:
-    return f"{jour.isoformat()}.csv"
-
-
-def lire_jour(jour: date) -> str | None:
-    """Retourne le contenu CSV du jour demandé, ou None s'il n'existe pas."""
+def lire_historique_brut() -> str | None:
+    """Retourne le contenu du fichier CSV d'historique, ou None s'il n'existe pas."""
     bucket = _bucket()
     if bucket:
         import boto3
 
         s3 = boto3.client("s3")
-        cle = PREFIXE_S3 + _nom_fichier(jour)
         try:
-            objet = s3.get_object(Bucket=bucket, Key=cle)
+            objet = s3.get_object(Bucket=bucket, Key=CLE_S3)
         except s3.exceptions.NoSuchKey:
             return None
         return objet["Body"].read().decode("utf-8")
 
-    chemin = os.path.join(_dossier_local(), _nom_fichier(jour))
+    chemin = _chemin_local()
     if not os.path.exists(chemin):
         return None
     with open(chemin, encoding="utf-8") as f:
         return f.read()
 
 
-def ecrire_jour(jour: date, contenu: str) -> None:
-    """Écrit (ou remplace) le fichier CSV du jour demandé."""
+def ecrire_historique_brut(contenu: str) -> None:
+    """Écrit (ou remplace) le fichier CSV d'historique."""
     bucket = _bucket()
     if bucket:
         import boto3
 
         s3 = boto3.client("s3")
-        cle = PREFIXE_S3 + _nom_fichier(jour)
-        s3.put_object(Bucket=bucket, Key=cle, Body=contenu.encode("utf-8"), ContentType="text/csv")
-        logger.info("Écrit s3://%s/%s (%d octets)", bucket, cle, len(contenu))
+        s3.put_object(Bucket=bucket, Key=CLE_S3, Body=contenu.encode("utf-8"), ContentType="text/csv")
+        logger.info("Écrit s3://%s/%s (%d octets)", bucket, CLE_S3, len(contenu))
         return
 
-    dossier = _dossier_local()
-    os.makedirs(dossier, exist_ok=True)
-    chemin = os.path.join(dossier, _nom_fichier(jour))
+    chemin = _chemin_local()
+    os.makedirs(os.path.dirname(chemin), exist_ok=True)
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(contenu)
     logger.info("Écrit %s (%d octets)", chemin, len(contenu))
@@ -73,19 +78,22 @@ def ecrire_jour(jour: date, contenu: str) -> None:
 
 def construire_lignes(data: dict[str, dict], quand: datetime) -> list[list]:
     """Transforme un snapshot de scraping en lignes CSV (une par parking)."""
-    horodatage = quand.astimezone(timezone.utc).isoformat(timespec="seconds")
+    quand_utc = quand.astimezone(timezone.utc)
+    quand_local = quand_utc.astimezone(ZoneInfo(TIMEZONE))
+    horodatage = quand_utc.isoformat(timespec="seconds")
+    date_locale = quand_local.strftime("%Y-%m-%d")
+    heure_locale = quand_local.strftime("%H:%M:%S")
     return [
-        [horodatage, nom, entree["Places"], entree["Capacite"], entree["Statut"]]
+        [horodatage, date_locale, heure_locale, nom, entree["Places"], entree["Capacite"], entree["Statut"]]
         for nom, entree in sorted(data.items())
     ]
 
 
 def ajouter_snapshot(data: dict[str, dict], quand: datetime | None = None) -> None:
-    """Ajoute un snapshot au fichier CSV du jour (créé avec en-tête si besoin)."""
+    """Ajoute un snapshot au fichier d'historique (créé avec en-tête si besoin)."""
     quand = quand or datetime.now(timezone.utc)
-    jour = quand.astimezone(timezone.utc).date()
 
-    existant = lire_jour(jour)
+    existant = lire_historique_brut()
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     if existant is None:
@@ -94,33 +102,25 @@ def ajouter_snapshot(data: dict[str, dict], quand: datetime | None = None) -> No
         buffer.write(existant)
     writer.writerows(construire_lignes(data, quand))
 
-    ecrire_jour(jour, buffer.getvalue())
+    ecrire_historique_brut(buffer.getvalue())
 
 
 def charger_historique(heures: int, maintenant: datetime | None = None):
     """Charge l'historique des `heures` dernières heures dans un DataFrame.
 
     Retourne un DataFrame (éventuellement vide) avec les colonnes de COLONNES,
-    timestamp_utc parsé en datetime UTC.
+    timestamp_utc parsé en datetime UTC, trié chronologiquement.
     """
     import pandas as pd
 
     maintenant = maintenant or datetime.now(timezone.utc)
     debut = maintenant - timedelta(hours=heures)
 
-    morceaux = []
-    jour = debut.astimezone(timezone.utc).date()
-    dernier_jour = maintenant.astimezone(timezone.utc).date()
-    while jour <= dernier_jour:
-        contenu = lire_jour(jour)
-        if contenu:
-            morceaux.append(pd.read_csv(io.StringIO(contenu)))
-        jour += timedelta(days=1)
-
-    if not morceaux:
+    contenu = lire_historique_brut()
+    if not contenu:
         return pd.DataFrame(columns=COLONNES)
 
-    df = pd.concat(morceaux, ignore_index=True)
+    df = pd.read_csv(io.StringIO(contenu))
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
     df = df[(df["timestamp_utc"] >= debut) & (df["timestamp_utc"] <= maintenant)]
     return df.sort_values("timestamp_utc").reset_index(drop=True)

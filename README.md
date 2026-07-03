@@ -109,15 +109,23 @@ docker run -d -p 8501:8501 --name dashboard-parking --restart unless-stopped das
 **3. 📊 Affichage** (`dashboard_parking.py`)
 - Métriques globales, cartes par parking, carte interactive Folium et graphique d'historique
 
-**4. 🗄️ Historique** (`.github/workflows/scrape-parkings.yml` + `parking_dashboard/storage.py`)
-- Un workflow GitHub Actions scrape toutes les 10 minutes, indépendamment du dashboard
-- Chaque relevé est ajouté à un CSV journalier sur un bucket S3 (`history/AAAA-MM-JJ.csv`)
-- Le dashboard lit cet historique pour tracer les variations d'occupation
+**4. 🗄️ Historique** (`lambda/` + `parking_dashboard/storage.py`)
+- AWS Lambda (déclenchée par EventBridge toutes les 10 min) scrape indépendamment du dashboard
+- Chaque relevé est ajouté à un fichier CSV unique sur S3 (`history/parkings.csv`), au schéma prêt pour l'analyse :
+
+| timestamp_utc | date | heure | parking | places_dispo | places_total | statut |
+|---|---|---|---|---|---|---|
+| 2026-07-03T16:21:14+00:00 | 2026-07-03 | 18:21:14 | Rotonde | 553 | 1800 | ✅ Ouvert |
+
+- `timestamp_utc` (ISO 8601) sert de clé canonique ; `date`/`heure` sont en heure de Paris pour l'analyse
+- Un seul fichier = ingestion directe dans une base (RDS, DuckDB, pandas) pour l'analyse ou la prédiction
+- Le dashboard lit ce fichier pour tracer les variations d'occupation
 
 ```
                     ┌─> Cache Streamlit (TTL 10 min) ──> Affichage temps réel
 Sites Semepa ── Scraping HTML ── Extraction Regex
-                    └─> GitHub Actions (cron 10 min) ──> S3 (CSV/jour) ──> Graphique historique
+                    └─> Lambda (EventBridge 10 min) ──> S3 (CSV unique) ──> Graphique historique
+                                                              └──> RDS / analyse / prédiction
 ```
 
 ### Technologies utilisées
@@ -143,8 +151,11 @@ Dashboard-parking/
 │   └── storage.py                  # Historique CSV sur S3 (ou dossier local en dev)
 ├── scripts/
 │   └── scrape_to_s3.py             # Job planifié : scrape + archive un relevé
+├── lambda/
+│   ├── lambda_function.py          # Handler AWS Lambda (collecte serverless)
+│   └── build_zip.sh                # Construit le package de déploiement Lambda
 ├── .github/workflows/
-│   └── scrape-parkings.yml         # Cron GitHub Actions (toutes les 10 min)
+│   └── scrape-parkings.yml         # Cron GitHub Actions (secours, désactivé)
 ├── tests/
 │   ├── test_scraper.py             # Tests unitaires (parsing, statuts)
 │   └── test_storage.py             # Tests unitaires (historique CSV)
@@ -161,7 +172,7 @@ Dashboard-parking/
 
 ## 🗄️ Historique S3 : mise en place
 
-L'historique repose sur un bucket S3 alimenté toutes les 10 minutes par GitHub Actions. Coût estimé : **moins de 0,50 € par an** (~50 Mo et ~52 000 écritures par an).
+L'historique repose sur un bucket S3 alimenté toutes les 10 minutes par AWS Lambda (voir la section « Collecte serverless » ; le workflow GitHub Actions est conservé en secours). Coût estimé : **moins de 0,50 € par an** (~50 Mo et ~52 000 écritures par an).
 
 ### 1. Créer le bucket S3
 
@@ -223,6 +234,37 @@ python -m scripts.scrape_to_s3 --local
 ```
 
 Le dashboard lira automatiquement ce dossier si `S3_BUCKET` n'est pas défini — pratique pour tester le graphique sans bucket.
+
+## ⚡ Collecte serverless : AWS Lambda + EventBridge
+
+La collecte de production tourne sur **AWS Lambda**, déclenchée par **EventBridge Scheduler** toutes les 10 minutes — fiable à la minute, contrairement aux crons GitHub Actions (conservés en secours, workflow désactivé). Coût : 0 € (free tier permanent Lambda, usage très en dessous des seuils).
+
+### Construire le package
+
+```bash
+./lambda/build_zip.sh        # produit dist/lambda-scraper.zip
+```
+
+Le zip contient le package `parking_dashboard` + `requests` (boto3 est déjà fourni par le runtime Lambda).
+
+### Déployer (console AWS, même région que le bucket)
+
+1. **Rôle IAM** : rôle de service Lambda avec `AWSLambdaBasicExecutionRole` (logs CloudWatch) + `s3:GetObject`/`s3:PutObject` sur `arn:aws:s3:::BUCKET/history/*`. Pas de clé d'accès : la fonction hérite des permissions de son rôle d'exécution.
+2. **Fonction Lambda** : runtime Python 3.13, handler `lambda_function.lambda_handler`, upload du zip, timeout **120 s**, mémoire 128 Mo, variable d'environnement `S3_BUCKET` (la région est fournie automatiquement par le runtime).
+3. **EventBridge Scheduler** : planification `rate(10 minutes)`, cible = la fonction Lambda.
+4. **Un seul écrivain** : désactiver le workflow GitHub « Scrape parkings » (onglet Actions → ⋯ → *Disable workflow*) pour éviter deux écritures concurrentes du fichier CSV.
+5. **Recommandé** : activer le **Versioning** sur le bucket S3 — l'historique tenant dans un seul fichier réécrit à chaque relevé, le versioning protège contre toute corruption ou écrasement accidentel.
+
+Les logs de chaque exécution sont dans CloudWatch Logs (`/aws/lambda/<nom-de-la-fonction>`).
+
+### Exploiter les données (RDS, analyse, prédiction)
+
+Le fichier `history/parkings.csv` s'importe tel quel :
+- **PostgreSQL/RDS** : `COPY parkings FROM ... CSV HEADER` (ou via `aws_s3.table_import_from_s3` sur RDS)
+- **pandas** : `pd.read_csv("s3://BUCKET/history/parkings.csv")`
+- **DuckDB** : `SELECT * FROM read_csv_auto('s3://BUCKET/history/parkings.csv')`
+
+Clé primaire naturelle : `(timestamp_utc, parking)`.
 
 ## 🧪 Tests
 

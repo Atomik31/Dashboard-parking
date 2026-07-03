@@ -175,10 +175,10 @@ else:
 
     if mesure == "Occupation (%)":
         historique["valeur"] = (
-            (1 - historique["places"] / historique["capacite"]) * 100
+            (1 - historique["places_dispo"] / historique["places_total"]) * 100
         ).clip(0, 100).round(1)
     else:
-        historique["valeur"] = historique["places"]
+        historique["valeur"] = historique["places_dispo"]
 
     fig = px.line(
         historique,
