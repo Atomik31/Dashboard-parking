@@ -55,6 +55,8 @@ Un seul fichier CSV, pensé pour être importé tel quel dans une base relationn
 
 Le temps est stocké deux fois, et c'est voulu : `timestamp_utc` est la référence canonique (tri, déduplication, fenêtres temporelles, insensible aux changements d'heure), tandis que `date` et `heure` en heure de Paris servent l'analyse métier (« quel taux d'occupation à 11 h ? »). Clé primaire naturelle : `(timestamp_utc, parking)`.
 
+## Gestion des coûts
+
 Volumétrie : ~53 000 relevés/an (6/heure), soit ~475 000 lignes ≈ 40 Mo. Coût AWS total (Lambda + EventBridge + S3) : quelques centimes par an, couvert par le free tier permanent de Lambda.
 
 ## Structure du projet
