@@ -4,3 +4,4 @@
 base = "dark"
 backgroundColor = "#2B2B30"
 secondaryBackgroundColor = "#1F1F24"
+primaryColor = "#3987e5"
