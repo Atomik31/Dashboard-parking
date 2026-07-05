@@ -56,7 +56,7 @@ st.markdown(
 header[data-testid="stHeader"] { background: transparent; }
 
 /* En-tête */
-.pk-header { display: flex; align-items: center; gap: 14px; }
+.pk-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
 .pk-logo {
   width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
   background: var(--pk-accent); color: #fff;
