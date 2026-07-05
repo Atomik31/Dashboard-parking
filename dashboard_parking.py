@@ -25,12 +25,138 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 st.set_page_config(
     page_title="Parkings Aix-en-Provence",
     page_icon="🅿️",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-st.title("🅿️ Parkings Aix-en-Provence")
-st.subheader("Places disponibles en temps réel")
+# ---------------------------------------------------------------------------
+# Design V2 : palette et composants (voir maquette_v2.html)
+# ---------------------------------------------------------------------------
+
+SURFACE = "#1F1F24"
+ACCENT = "#3987e5"
+
+# Couleurs d'état : disponibilité large / limitée / presque complet / indisponible
+COULEURS_ETAT = {"good": "#0ca30c", "warn": "#fab219", "crit": "#e05252", "closed": "#898781"}
+LIBELLES_ETAT = {"good": "Large", "warn": "Limité", "crit": "Presque complet"}
+
+st.markdown(
+    """
+<style>
+:root {
+  --pk-surface: #1F1F24;
+  --pk-ink: #ffffff;
+  --pk-ink2: #c3c2b7;
+  --pk-muted: #898781;
+  --pk-border: rgba(255, 255, 255, 0.10);
+  --pk-accent: #3987e5;
+  --pk-track: #3d3d43;
+}
+.block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px; }
+header[data-testid="stHeader"] { background: transparent; }
+
+/* En-tête */
+.pk-header { display: flex; align-items: center; gap: 14px; }
+.pk-logo {
+  width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+  background: var(--pk-accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 700;
+}
+.pk-title { font-size: 19px; font-weight: 650; color: var(--pk-ink); letter-spacing: -0.01em; }
+.pk-subtitle { font-size: 12.5px; color: var(--pk-ink2); margin-top: 1px; }
+.pk-live {
+  display: inline-flex; align-items: center; gap: 8px; margin-left: auto;
+  font-size: 12.5px; color: var(--pk-ink2);
+  padding: 6px 13px; border: 1px solid var(--pk-border); border-radius: 999px;
+  white-space: nowrap;
+}
+.pk-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #0ca30c;
+  animation: pk-pulse 2.4s ease-in-out infinite;
+}
+@keyframes pk-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .pk-dot { animation: none; } }
+
+/* Tuiles d'indicateurs */
+.pk-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pk-tile {
+  background: var(--pk-surface); border: 1px solid var(--pk-border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.pk-label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--pk-muted);
+  line-height: 1.25;
+}
+/* Les tuiles réservent deux lignes de libellé pour que les valeurs s'alignent */
+.pk-tile .pk-label { min-height: 26px; }
+.pk-value {
+  font-size: 26px; font-weight: 700; margin-top: 4px;
+  letter-spacing: -0.02em; color: var(--pk-ink);
+}
+.pk-sub { font-size: 11.5px; color: var(--pk-ink2); margin-top: 2px; }
+
+/* Libellés de section */
+.pk-section {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--pk-muted); margin: 14px 2px 8px;
+}
+
+/* Cartes parking */
+.pk-card {
+  background: var(--pk-surface); border: 1px solid var(--pk-border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  transition: border-color 0.15s;
+}
+.pk-card:hover { border-color: var(--pk-accent); }
+.pk-card-top { display: flex; align-items: baseline; gap: 10px; }
+.pk-name { font-size: 14.5px; font-weight: 650; color: var(--pk-ink); }
+.pk-chip {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+}
+.pk-chip.good { background: rgba(12, 163, 12, 0.15); color: #2ebe2e; }
+.pk-chip.warn { background: rgba(250, 178, 25, 0.15); color: #fab219; }
+.pk-chip.crit { background: rgba(224, 82, 82, 0.16); color: #e57373; }
+.pk-chip.closed { background: rgba(137, 135, 129, 0.18); color: var(--pk-ink2); }
+.pk-places { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+.pk-big { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--pk-ink); }
+.pk-cap { font-size: 12.5px; color: var(--pk-muted); }
+.pk-bar {
+  height: 7px; border-radius: 4px; background: var(--pk-track);
+  margin-top: 8px; overflow: hidden;
+}
+.pk-bar i { display: block; height: 100%; border-radius: 4px; }
+.pk-meta {
+  display: flex; justify-content: space-between;
+  font-size: 11.5px; color: var(--pk-muted); margin-top: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Carte folium : coins arrondis comme les autres blocs */
+iframe[title="streamlit_folium.st_folium"] { border-radius: 12px; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+def etat_parking(statut: str, places: int, capacite: int) -> str:
+    """Classe visuelle d'un parking selon son statut et son taux de places libres."""
+    if statut != STATUT_OUVERT:
+        return "closed"
+    taux = places / capacite
+    if taux > 0.5:
+        return "good"
+    if taux > 0.1:
+        return "warn"
+    return "crit"
+
+
+def fmt_nombre(valeur: int) -> str:
+    """Formate un entier avec un séparateur de milliers à la française."""
+    return f"{valeur:,}".replace(",", " ")
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDES, show_spinner="Récupération des données des parkings...")
@@ -43,101 +169,157 @@ def charger_donnees() -> tuple[dict[str, dict], str]:
 
 donnees, derniere_maj = charger_donnees()
 
-col1, col2, col3 = st.columns([1, 1, 1])
-with col2:
-    if st.button("🔄 Rafraîchir maintenant", use_container_width=True):
+df = pd.DataFrame(donnees).T
+df["_ouvert"] = df["Statut"] == STATUT_OUVERT
+df = df.sort_values(["_ouvert", "Places"], ascending=[False, False])
+
+# ---------------------------------------------------------------------------
+# En-tête : logo, titre, badge de fraîcheur, bouton d'actualisation
+# ---------------------------------------------------------------------------
+
+col_titre, col_bouton = st.columns([5, 1], vertical_alignment="center")
+with col_titre:
+    st.markdown(
+        '<div class="pk-header">'
+        '<div class="pk-logo">P</div>'
+        "<div>"
+        '<div class="pk-title">Parkings Aix-en-Provence</div>'
+        f'<div class="pk-subtitle">Places disponibles en temps réel</div>'
+        "</div>"
+        f'<div class="pk-live"><span class="pk-dot"></span>Mis à jour à {derniere_maj}</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+with col_bouton:
+    if st.button("Actualiser", type="primary", use_container_width=True):
         charger_donnees.clear()
         st.rerun()
 
-df = pd.DataFrame(donnees).T
-df = df.sort_values("Places", ascending=False)
+# ---------------------------------------------------------------------------
+# Panneau latéral (tuiles + liste des parkings) et carte
+# ---------------------------------------------------------------------------
 
-col1, col2, col3 = st.columns(3)
+col_liste, col_carte = st.columns([1, 3], gap="medium")
 
-with col1:
-    st.metric("Total places disponibles", int(df["Places"].sum()))
+with col_liste:
+    ouverts = df[df["_ouvert"]]
+    total_libres = int(ouverts["Places"].sum())
+    total_capacite = int(ouverts["Capacite"].sum())
+    nb_ouverts = len(ouverts)
+    occupation = f"{round((1 - total_libres / total_capacite) * 100)} %" if total_capacite else "–"
 
-with col2:
-    ouverts = int((df["Statut"] == STATUT_OUVERT).sum())
-    st.metric("Parkings ouverts", f"{ouverts}/{len(PARKINGS)}")
+    st.markdown(
+        '<div class="pk-tiles">'
+        '<div class="pk-tile"><div class="pk-label">Places libres</div>'
+        f'<div class="pk-value">{fmt_nombre(total_libres)}</div>'
+        '<div class="pk-sub">tous parcs</div></div>'
+        '<div class="pk-tile"><div class="pk-label">Ouverts</div>'
+        f'<div class="pk-value">{nb_ouverts}/{len(PARKINGS)}</div>'
+        '<div class="pk-sub">en service</div></div>'
+        '<div class="pk-tile"><div class="pk-label">Occupation</div>'
+        f'<div class="pk-value">{occupation}</div>'
+        '<div class="pk-sub">moyenne</div></div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-with col3:
-    st.metric("Dernière mise à jour", derniere_maj)
+    st.markdown(
+        '<div class="pk-section">Parkings, du plus disponible au plus rempli</div>',
+        unsafe_allow_html=True,
+    )
 
-st.divider()
+    cartes_html = []
+    for nom, row in df.iterrows():
+        places, capacite = int(row["Places"]), int(row["Capacite"])
+        etat = etat_parking(row["Statut"], places, capacite)
 
-cols = st.columns(3)
-
-for idx, (nom, row) in enumerate(df.iterrows()):
-    with cols[idx % 3]:
-        container = st.container(border=True)
-        if row["Statut"] == STATUT_OUVERT:
-            container.metric(nom, row["Affichage"], delta=row["Statut"])
+        if etat == "closed":
+            chip = row["Affichage"]
+            corps = f'<div class="pk-places"><span class="pk-cap">{row["Affichage"]}</span></div>'
+            pct_libres = ""
         else:
-            container.warning(f"**{nom}**\n\n{row['Affichage']}")
-        container.caption(f"🕐 {row['Timestamp']}")
+            pct = round(places / capacite * 100)
+            chip = "Complet" if row["Affichage"] == "COMPLET" else LIBELLES_ETAT[etat]
+            corps = (
+                f'<div class="pk-places"><span class="pk-big">{places}</span>'
+                f'<span class="pk-cap">/ {fmt_nombre(capacite)} places</span></div>'
+                f'<div class="pk-bar"><i style="width:{max(3, pct)}%;'
+                f'background:{COULEURS_ETAT[etat]}"></i></div>'
+            )
+            pct_libres = f"{pct} % libres"
 
-st.divider()
+        cartes_html.append(
+            '<div class="pk-card">'
+            f'<div class="pk-card-top"><span class="pk-name">{nom}</span>'
+            f'<span class="pk-chip {etat}">{chip}</span></div>'
+            f"{corps}"
+            f'<div class="pk-meta"><span>MAJ {row["Timestamp"]}</span><span>{pct_libres}</span></div>'
+            "</div>"
+        )
+    st.markdown("".join(cartes_html), unsafe_allow_html=True)
 
-st.subheader("🗺️ Localisation des parkings")
+with col_carte:
+    # Hauteur alignée sur la colonne de gauche : tuiles + libellé de section
+    # puis une carte par parking (les cartes "fermé" sont plus courtes).
+    nb_fermes = int((~df["_ouvert"]).sum())
+    nb_ouverts_cartes = len(df) - nb_fermes
+    hauteur_carte = 125 + 144 * nb_ouverts_cartes + 110 * nb_fermes
 
+    carte = folium.Map(
+        location=list(CENTRE_CARTE),
+        zoom_start=15,
+        tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        attr="Google",
+    )
 
-def couleur_marqueur(statut: str, places: int, capacite: int) -> str:
-    """Couleur du marqueur selon le statut et le taux de places disponibles."""
-    if statut != STATUT_OUVERT:
-        return "gray"
-    taux = places / capacite
-    if taux > 0.5:
-        return "green"
-    if taux > 0.1:
-        return "orange"
-    return "red"
+    for nom, row in df.iterrows():
+        places, capacite = int(row["Places"]), int(row["Capacite"])
+        etat = etat_parking(row["Statut"], places, capacite)
+        fond = COULEURS_ETAT[etat]
+        texte = "#3a2a00" if etat == "warn" else "#ffffff"
+        valeur = places if etat != "closed" else "–"
 
+        pastille = (
+            '<div style="transform:translate(-50%,-50%);display:flex;align-items:center;'
+            "justify-content:center;gap:4px;min-width:44px;height:32px;padding:0 10px;"
+            f"border-radius:999px;background:{fond};color:{texte};border:2px solid {SURFACE};"
+            "font:700 13px system-ui,sans-serif;white-space:nowrap;"
+            'box-shadow:0 2px 10px rgba(0,0,0,0.5);">'
+            f'<span style="font-size:10px;opacity:0.85;">P</span>{valeur}</div>'
+        )
 
-carte = folium.Map(
-    location=list(CENTRE_CARTE),
-    zoom_start=15,
-    tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    attr="Google",
-)
+        folium.Marker(
+            location=[row["latitude"], row["longitude"]],
+            icon=folium.DivIcon(html=pastille, icon_size=(0, 0), icon_anchor=(0, 0)),
+            tooltip=f"{nom} : {row['Affichage']} · MAJ {row['Timestamp']}",
+        ).add_to(carte)
 
-for nom, row in df.iterrows():
-    couleur = couleur_marqueur(row["Statut"], int(row["Places"]), int(row["Capacite"]))
+    # Légende en surimpression sur la carte (rendue dans l'iframe folium,
+    # d'où les styles en ligne).
+    puce = '<i style="width:10px;height:10px;border-radius:50%;background:{};"></i>'
+    item = (
+        '<span style="display:inline-flex;align-items:center;gap:6px;">{}{}</span>'
+    )
+    legende = (
+        '<div style="position:absolute;bottom:14px;left:14px;z-index:1000;'
+        "display:flex;flex-wrap:wrap;gap:6px 16px;padding:9px 14px;"
+        f"background:rgba(31,31,36,0.92);border:1px solid rgba(255,255,255,0.10);"
+        'border-radius:10px;font:500 11.5px system-ui,sans-serif;color:#c3c2b7;">'
+        + item.format(puce.format(COULEURS_ETAT["good"]), "Large (&gt; 50 % libres)")
+        + item.format(puce.format(COULEURS_ETAT["warn"]), "Limité (10 à 50 %)")
+        + item.format(puce.format(COULEURS_ETAT["crit"]), "Presque complet (&lt; 10 %)")
+        + item.format(puce.format(COULEURS_ETAT["closed"]), "Fermé ou sans données")
+        + "</div>"
+    )
+    carte.get_root().html.add_child(folium.Element(legende))
 
-    popup_html = f"""
-    <b>{nom}</b><br/>
-    Places: {row['Affichage']}<br/>
-    Statut: {row['Statut']}<br/>
-    MAJ: {row['Timestamp']}
-    """
+    st_folium(carte, height=hauteur_carte, use_container_width=True, returned_objects=[])
 
-    folium.CircleMarker(
-        location=[row["latitude"], row["longitude"]],
-        radius=15,
-        popup=folium.Popup(popup_html, max_width=250),
-        tooltip=f"{nom}: {row['Affichage']}",
-        color=couleur,
-        fill=True,
-        fillColor=couleur,
-        fillOpacity=0.7,
-        weight=2,
-    ).add_to(carte)
+# ---------------------------------------------------------------------------
+# Historique d'occupation
+# ---------------------------------------------------------------------------
 
-st_folium(carte, height=600, width=700)
-
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.markdown("🟢 **Plus de 50%** - Beaucoup de places")
-with col2:
-    st.markdown("🟠 **10-50%** - Places limitées")
-with col3:
-    st.markdown("🔴 **Moins de 10%** - Presque plein")
-with col4:
-    st.markdown("⚫ **Parking Hors Service**")
-
-st.divider()
-
-st.subheader("📈 Historique d'occupation")
+st.markdown('<div class="pk-section">Historique d\'occupation</div>', unsafe_allow_html=True)
 
 COULEUR_PAR_PARKING = {p.nom: c for p, c in zip(PARKINGS, COULEURS_SERIES)}
 
