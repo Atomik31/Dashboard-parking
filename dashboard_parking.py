@@ -1,5 +1,6 @@
 """Dashboard Streamlit : places disponibles des parkings publics d'Aix-en-Provence."""
 import logging
+from contextlib import contextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -7,6 +8,9 @@ import folium
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from branca.element import MacroElement
+from folium.elements import JSCSSMixin
+from jinja2 import Template
 from streamlit_folium import st_folium
 
 from parking_dashboard.config import (
@@ -136,10 +140,77 @@ header[data-testid="stHeader"] { background: transparent; }
 
 /* Carte folium : coins arrondis comme les autres blocs */
 iframe[title="streamlit_folium.st_folium"] { border-radius: 12px; }
+
+/* Écran de chargement : overlay centré avec barre de progression animée */
+.pk-loader {
+  position: fixed; inset: 0; z-index: 999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 14, 17, 0.72);
+  backdrop-filter: blur(3px);
+}
+.pk-loader-box {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  width: min(340px, 80vw); text-align: center;
+}
+.pk-loader-box .pk-logo { width: 52px; height: 52px; font-size: 30px; border-radius: 13px; }
+.pk-loader-msg { font-size: 14.5px; font-weight: 500; color: var(--pk-ink2); }
+.pk-loader-bar {
+  width: 100%; height: 6px; border-radius: 999px;
+  background: var(--pk-track); overflow: hidden;
+}
+.pk-loader-bar i {
+  display: block; height: 100%; width: 38%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--pk-accent), #6db3ff);
+  animation: pk-slide 1.1s ease-in-out infinite;
+}
+@keyframes pk-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(290%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pk-loader-bar i { animation-duration: 2.4s; }
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
+
+
+class GestureHandling(JSCSSMixin, MacroElement):
+    """Plugin leaflet-gesture-handling : zoom à la molette uniquement avec Ctrl,
+    déplacement mobile à deux doigts — sinon le scroll de la page reste prioritaire.
+
+    Déclaré via JSCSSMixin pour que streamlit-folium charge les dépendances
+    dans son iframe (les scripts ajoutés au header y sont ignorés).
+    """
+
+    _template = Template(
+        """
+        {% macro script(this, kwargs) %}
+        if (!{{ this._parent.get_name() }}.gestureHandling
+            && window.leafletGestureHandling) {
+            {{ this._parent.get_name() }}.addHandler(
+                "gestureHandling", window.leafletGestureHandling.GestureHandling);
+        }
+        if ({{ this._parent.get_name() }}.gestureHandling) {
+            {{ this._parent.get_name() }}.gestureHandling.enable();
+        }
+        {% endmacro %}
+        """
+    )
+
+    default_js = [
+        (
+            "leaflet_gesture_handling",
+            "https://unpkg.com/leaflet-gesture-handling@1.2.2/dist/leaflet-gesture-handling.min.js",
+        )
+    ]
+    default_css = [
+        (
+            "leaflet_gesture_handling_css",
+            "https://unpkg.com/leaflet-gesture-handling@1.2.2/dist/leaflet-gesture-handling.min.css",
+        )
+    ]
 
 
 def etat_parking(statut: str, places: int, capacite: int) -> str:
@@ -159,7 +230,25 @@ def fmt_nombre(valeur: int) -> str:
     return f"{valeur:,}".replace(",", " ")
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDES, show_spinner="Récupération des données des parkings...")
+@contextmanager
+def ecran_chargement(message: str):
+    """Affiche un overlay centré avec barre de progression pendant un chargement."""
+    placeholder = st.empty()
+    placeholder.markdown(
+        '<div class="pk-loader"><div class="pk-loader-box">'
+        '<div class="pk-logo">P</div>'
+        f'<div class="pk-loader-msg">{message}</div>'
+        '<div class="pk-loader-bar"><i></i></div>'
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
+    try:
+        yield
+    finally:
+        placeholder.empty()
+
+
+@st.cache_data(ttl=CACHE_TTL_SECONDES, show_spinner=False)
 def charger_donnees() -> tuple[dict[str, dict], str]:
     """Scrape les parkings; le résultat est partagé entre toutes les sessions pendant le TTL."""
     data = scrape_all()
@@ -167,7 +256,8 @@ def charger_donnees() -> tuple[dict[str, dict], str]:
     return data, horodatage
 
 
-donnees, derniere_maj = charger_donnees()
+with ecran_chargement("Récupération des données des parkings..."):
+    donnees, derniere_maj = charger_donnees()
 
 df = pd.DataFrame(donnees).T
 df["_ouvert"] = df["Statut"] == STATUT_OUVERT
@@ -270,7 +360,9 @@ with col_carte:
         zoom_start=15,
         tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
         attr="Google",
+        gesture_handling=True,
     )
+    GestureHandling().add_to(carte)
 
     for nom, row in df.iterrows():
         places, capacite = int(row["Places"]), int(row["Capacite"])
@@ -324,7 +416,7 @@ st.markdown('<div class="pk-section">Historique d\'occupation</div>', unsafe_all
 COULEUR_PAR_PARKING = {p.nom: c for p, c in zip(PARKINGS, COULEURS_SERIES)}
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDES, show_spinner="Chargement de l'historique...")
+@st.cache_data(ttl=CACHE_TTL_SECONDES, show_spinner=False)
 def charger_historique_cache(heures: int) -> pd.DataFrame:
     return charger_historique(heures)
 
@@ -342,7 +434,8 @@ with col_mesure:
 noms_parkings = [p.nom for p in PARKINGS]
 selection = st.multiselect("Parkings affichés", noms_parkings, default=noms_parkings)
 
-historique = charger_historique_cache(PLAGES_HISTORIQUE.get(plage, 6))
+with ecran_chargement("Chargement de l'historique..."):
+    historique = charger_historique_cache(PLAGES_HISTORIQUE.get(plage, 6))
 
 if historique.empty:
     st.info(
