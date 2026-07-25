@@ -466,19 +466,27 @@ else:
     fig.update_traces(line_width=2)
     fig.update_layout(
         hovermode="x unified",
+        # dragmode + fixedrange : pas de zoom ni de sélection au doigt sur mobile,
+        # le graphique reste fixe (les infobulles au survol restent actives).
+        dragmode=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_color="#898781",
         legend=dict(title=None, orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=10, r=10, t=10, b=10),
-        xaxis=dict(gridcolor="#3d3d43", title=None),
+        xaxis=dict(gridcolor="#3d3d43", title=None, fixedrange=True),
         yaxis=dict(
             gridcolor="#3d3d43",
             title=mesure,
             range=[0, 100] if mesure == "Occupation (%)" else None,
             rangemode="tozero",
+            fixedrange=True,
         ),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"scrollZoom": False, "displayModeBar": False, "doubleClick": False},
+    )
 
 st.caption("✒️ Dashboard conçu par Julien CHARLIER")
