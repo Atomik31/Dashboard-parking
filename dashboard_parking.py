@@ -141,6 +141,12 @@ header[data-testid="stHeader"] { background: transparent; }
 /* Carte folium : coins arrondis comme les autres blocs */
 iframe[title="streamlit_folium.st_folium"] { border-radius: 12px; }
 
+/* Pied de page centré */
+.pk-footer {
+  text-align: center; font-size: 12.5px; color: var(--pk-muted);
+  margin-top: 24px;
+}
+
 /* Écran de chargement : overlay centré avec barre de progression animée */
 .pk-loader {
   position: fixed; inset: 0; z-index: 999;
@@ -489,4 +495,7 @@ else:
         config={"scrollZoom": False, "displayModeBar": False, "doubleClick": False},
     )
 
-st.caption("✒️ Dashboard conçu par Julien CHARLIER")
+st.markdown(
+    '<div class="pk-footer">✒️ Dashboard conçu par Julien CHARLIER</div>',
+    unsafe_allow_html=True,
+)
