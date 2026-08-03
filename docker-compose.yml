@@ -1,0 +1,16 @@
+# Déploiement auto-hébergé (VPS) : construit l'image depuis ce dépôt GitHub.
+# Les variables AWS donnent l'accès en lecture à l'historique S3 (voir README,
+# section Historique S3) ; sans elles le dashboard tourne, historique vide.
+services:
+  parking-dashboard:
+    build:
+      context: https://github.com/Atomik31/Dashboard-parking.git#main
+    container_name: parking-dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - S3_BUCKET=${S3_BUCKET:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-eu-west-3}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
