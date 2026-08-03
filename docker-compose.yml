@@ -1,4 +1,7 @@
 # Déploiement auto-hébergé (VPS) : construit l'image depuis ce dépôt GitHub.
+# Le trafic entre par le Traefik du Docker Manager Hostinger (réseau
+# traefik-proxy), qui route https://parking-aixpress.fr vers le port 8501 du
+# conteneur et gère le certificat Let's Encrypt.
 # Les variables AWS donnent l'accès en lecture à l'historique S3 (voir README,
 # section Historique S3) ; sans elles le dashboard tourne, historique vide.
 services:
@@ -14,3 +17,15 @@ services:
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-eu-west-3}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+    networks:
+      - traefik-proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.parking-dashboard.rule=Host(`parking-aixpress.fr`) || Host(`www.parking-aixpress.fr`)
+      - traefik.http.routers.parking-dashboard.entrypoints=websecure
+      - traefik.http.routers.parking-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.services.parking-dashboard.loadbalancer.server.port=8501
+
+networks:
+  traefik-proxy:
+    external: true
