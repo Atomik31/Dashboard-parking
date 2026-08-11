@@ -1,18 +1,11 @@
----
-title: Parkings Aix-en-Provence
-emoji: 🅿️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 8501
-pinned: false
----
-
 # 🅿️ Dashboard Parkings Aix-en-Provence
 
 Disponibilité en temps réel des 9 parkings publics d'Aix-en-Provence (Bellegarde, Cardeurs, Carnot, Méjanes, Mignet, Pasteur, Rambot, Rotonde, Signoret), avec un historique d'occupation collecté toutes les 10 minutes et archivé sur S3.
 
-**Démo :** https://atomik31-dashboard-parking-aix.hf.space/
+**App :** https://parking-aixpress.fr/
+
+![Carte des parkings](Parkings_map.png)
+![Historique d'occupation](Historique_d'occupation.png)
 
 ## La problématique
 
@@ -74,12 +67,12 @@ Dashboard-parking/
 ├── scripts/
 │   └── scrape_to_s3.py             # Même collecte en CLI (dev local, fallback CI)
 ├── .github/workflows/
-│   ├── scrape-parkings.yml         # Collecte de secours (désactivée)
-│   └── keep-space-awake.yml        # Ping anti-veille du Space HF (2x/jour)
+│   └── scrape-parkings.yml         # Collecte de secours (désactivée)
 ├── tests/                          # Pytest : parsing HTML, stockage, palette
 ├── notebooks/parking.ipynb         # Exploration initiale du scraping
 ├── .streamlit/config.toml          # Thème imposé (rendu identique partout)
-├── Dockerfile                      # Image non-root, healthcheck (Space HF / VPS)
+├── Dockerfile                      # Image non-root, healthcheck (VPS)
+├── docker-compose.yml              # Build depuis GitHub + labels Traefik (VPS)
 ├── requirements.txt                # Dépendances de production
 └── requirements-dev.txt            # + pytest
 ```
@@ -112,11 +105,21 @@ Les tests couvrent le parsing HTML (nombre de places, « COMPLET », fermeture, 
 
 ## Déploiement
 
-### Dashboard — Hugging Face Space (Docker)
+### Dashboard — VPS (Docker Manager + Traefik)
 
-Le Space construit le `Dockerfile` du repo (le front-matter en tête de ce README le configure : `sdk: docker`, `app_port: 8501`). L'image tourne non-root (exigence des Spaces) avec un healthcheck Streamlit. Pour donner au dashboard l'accès en lecture à l'historique : *Settings → Variables and secrets* du Space → `S3_BUCKET`, `AWS_DEFAULT_REGION` (variables), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (secrets — utilisateur IAM **lecteur**, `s3:GetObject` uniquement).
+`docker-compose.yml` construit l'image directement depuis ce dépôt GitHub (`build.context` pointe vers l'URL du repo) — pas besoin de cloner le code à la main sur le serveur. L'image tourne non-root avec un healthcheck Streamlit. Traefik (déjà présent sur le VPS, `network_mode: host`) découvre le conteneur via ses labels et route `https://parking-aixpress.fr` vers son port 8501, avec certificat Let's Encrypt automatique (résolveur `letsencrypt`).
 
-Les Spaces gratuits s'endorment après 48 h sans trafic : le workflow `keep-space-awake.yml` pingue l'application deux fois par jour, et son échec déclenche un email ce qui en fait aussi une sonde de disponibilité gratuite.
+Les variables `S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (utilisateur IAM **lecteur**, `s3:GetObject` uniquement) donnent au dashboard l'accès en lecture à l'historique ; sans elles il fonctionne normalement, section historique vide.
+
+Mise à jour après un push sur `main` :
+
+```bash
+cd /docker/dashboard-parking
+curl -fsSL https://raw.githubusercontent.com/Atomik31/Dashboard-parking/main/docker-compose.yml -o docker-compose.yml
+docker compose up -d --build
+```
+
+Un cron (`*/5 * * * *`) compare le dernier commit distant à celui déployé et relance ces commandes automatiquement en cas de nouveau push (voir `autodeploy.sh` sur le VPS).
 
 ### Dashboard — Docker sur n'importe quelle machine
 
