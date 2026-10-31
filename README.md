@@ -84,7 +84,7 @@ Deux briques indépendantes : l'**application** (`web/`, Node) et la **collecte*
 ```bash
 git clone https://github.com/Atomik31/Dashboard-parking.git
 cd Dashboard-parking/web
-cp .env.example .env     # puis renseigner les valeurs (voir web/README.md)
+# créer web/.env avec les variables listées dans web/README.md
 npm install
 npm run dev              # front http://localhost:5173, API http://localhost:3000
 npm test

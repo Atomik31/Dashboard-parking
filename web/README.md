@@ -9,7 +9,7 @@ Prérequis : Node 22.9+.
 ```bash
 cd web
 npm install
-cp .env.example .env        # puis renseigner les valeurs (voir ci-dessous)
+# créer web/.env avec les variables listées ci-dessous (fichier ignoré par git)
 npm run dev                 # API http://localhost:3000 + front http://localhost:5173 (proxy /api)
 npm test                    # tests vitest
 npm run build && NODE_ENV=production npm start   # production locale : Express sert dist/ sur :3000
@@ -20,7 +20,7 @@ npm run build && NODE_ENV=production npm start   # production locale : Express s
 Pour voir le dashboard sans se connecter :
 
 - `web/.env` : `AUTH_DEV_BYPASS=1` (le serveur accepte alors `Authorization: Bearer dev-bypass`) ;
-- `web/.env.development` : `VITE_AUTH_MODE=dev` (le front saute l'écran de connexion ; chargé uniquement par `npm run dev`).
+- `web/.env.development` (à créer, ignoré par git) : `VITE_AUTH_MODE=dev` (le front saute l'écran de connexion ; chargé uniquement par `npm run dev`).
 
 Garde-fous : le serveur **refuse de démarrer** si `AUTH_DEV_BYPASS` est actif avec `NODE_ENV=production` ; `vite build` **échoue** si `VITE_AUTH_MODE=dev` ; le mode dev du front est inerte dans un build (`import.meta.env.DEV`). Sans ces variables, l'authentification Firebase est obligatoire. Ne jamais les définir sur le VPS.
 
