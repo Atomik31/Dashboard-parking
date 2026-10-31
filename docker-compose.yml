@@ -1,18 +1,40 @@
-# Déploiement auto-hébergé (VPS) : construit l'image depuis ce dépôt GitHub.
-# Le trafic entre par le Traefik du VPS (network_mode: host), qui découvre le
-# conteneur via les labels, route https://parking-aixpress.fr vers son port
-# 8501 et obtient le certificat Let's Encrypt (résolveur `letsencrypt`).
-# Les variables AWS donnent l'accès en lecture à l'historique S3 (voir README,
-# section Historique S3) ; sans elles le dashboard tourne, historique vide.
+# Déploiement auto-hébergé (VPS) : construit l'image de l'app React/Express (dossier web/)
+# depuis ce dépôt GitHub. Chaque push sur `main` est repris automatiquement : un cron du VPS
+# (autodeploy.sh, toutes les 5 min) détecte le nouveau commit, récupère ce fichier puis
+# relance `docker compose up -d --build`.
+#
+# Le trafic entre par le Traefik du VPS (network_mode: host), qui découvre le conteneur via
+# les labels, route https://parking-aixpress.fr vers son port 3000 et obtient le certificat
+# Let's Encrypt (résolveur `letsencrypt`).
+#
+# Les variables viennent du fichier .env du VPS (/docker/dashboard-parking/.env), jamais du dépôt :
+#   S3_BUCKET, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  (historique S3)
+#   AIRTABLE_TOKEN                                                           (enregistrement des comptes)
+#   FIREBASE_PROJECT_ID                                                      (vérification des connexions)
+#   VITE_FIREBASE_API_KEY                                                    (config web Firebase, injectée au build)
+# Ne jamais définir AUTH_DEV_BYPASS : le serveur refuse de démarrer en production si c'est le cas.
 services:
   parking-dashboard:
     build:
-      context: https://github.com/Atomik31/Dashboard-parking.git#main
+      context: https://github.com/Atomik31/Dashboard-parking.git#main:web
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:?VITE_FIREBASE_API_KEY manquant dans le .env du VPS}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-parking-aixpress.firebaseapp.com}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-parking-aixpress}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-1:490680213265:web:757b0ffc9f794934e5f6b0}
     container_name: parking-dashboard
     restart: unless-stopped
+    # Liaison locale seulement : l'app n'est joignable de l'extérieur que via Traefik (TLS),
+    # ce qui garantit que X-Forwarded-For n'est pas falsifiable par un client.
     ports:
-      - "8501:8501"
+      - "127.0.0.1:3000:3000"
     environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - TRUST_PROXY=1
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-parking-aixpress}
+      - FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN:-parking-aixpress.firebaseapp.com}
+      - AIRTABLE_TOKEN=${AIRTABLE_TOKEN:-}
       - S3_BUCKET=${S3_BUCKET:-}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-eu-west-3}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
@@ -22,4 +44,4 @@ services:
       - traefik.http.routers.parking-dashboard.rule=Host(`parking-aixpress.fr`) || Host(`www.parking-aixpress.fr`)
       - traefik.http.routers.parking-dashboard.entrypoints=websecure
       - traefik.http.routers.parking-dashboard.tls.certresolver=letsencrypt
-      - traefik.http.services.parking-dashboard.loadbalancer.server.port=8501
+      - traefik.http.services.parking-dashboard.loadbalancer.server.port=3000
