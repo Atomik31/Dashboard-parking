@@ -1,7 +1,7 @@
 /* Textes juridiques (français). Modèle à relire et à adapter à la situation réelle de l'éditeur. */
 
 export const EDITEUR = 'Julien CHARLIER';
-export const CONTACT = 'julien.charlier31@gmail.com';
+export const CONTACT = 'contact@codaix.fr';
 export const SITE = 'https://parking-aixpress.fr';
 export const MAJ_LEGAL = '31 octobre 2026';
 
