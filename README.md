@@ -24,15 +24,15 @@ Le dashboard affiche les places disponibles parking par parking, une carte inter
 Le projet sépare strictement deux flux de données qui n'ont pas les mêmes contraintes :
 
 ```
-                       ┌─> Cache Streamlit (TTL 10 min) ──> Affichage temps réel
+                       ┌─> Cache serveur Express (TTL 10 min) ──> Affichage temps réel
 Sites Semepa ── Scraping (regex)
                        └─> EventBridge ──> Lambda ──> S3 (parkings.csv) ──> Graphique historique
                             rate(10 min)                     └──> RDS / analyse / prédiction (à venir)
 ```
 
-**Le flux temps réel** vit dans l'application Streamlit : le premier visiteur déclenche un scrape, le résultat est partagé entre toutes les sessions pendant 10 minutes (`st.cache_data`). Si personne ne visite le dashboard, aucune requête n'est envoyée aux sites sources.
+**Le flux temps réel** vit dans le serveur Express de l'application (`web/server/`) : le premier visiteur déclenche un scrape, le résultat est partagé entre tous les utilisateurs pendant 10 minutes (cache mémoire). Si personne ne visite le dashboard, aucune requête n'est envoyée aux sites sources.
 
-**Le flux historique** est totalement découplé de l'application : une fonction AWS Lambda, déclenchée par EventBridge Scheduler toutes les 10 minutes, scrape les 9 parkings et ajoute un relevé au fichier `history/parkings.csv` du bucket S3. Le dashboard n'est qu'un *lecteur* de ce fichier, il peut être en veille, planté ou redéployé sans qu'aucune donnée ne soit perdue.
+**Le flux historique** est totalement découplé de l'application : une fonction AWS Lambda, déclenchée par EventBridge Scheduler toutes les 10 minutes, scrape les 9 parkings et ajoute un relevé au fichier `history/parkings.csv` du bucket S3. L'application n'est qu'un *lecteur* de ce fichier, il peut être en veille, planté ou redéployé sans qu'aucune donnée ne soit perdue.
 
 ### Pourquoi Lambda plutôt qu'un cron GitHub Actions ?
 
@@ -56,48 +56,47 @@ Volumétrie : ~53 000 relevés/an (6/heure), soit ~475 000 lignes ≈ 40 Mo. Co�
 
 ```
 Dashboard-parking/
-├── dashboard_parking.py            # Point d'entrée Streamlit (UI uniquement)
-├── parking_dashboard/              # Package métier, testable sans Streamlit
-│   ├── config.py                   # Parkings, constantes, palette du graphique
+├── web/                            # Application (React + Express), voir web/README.md
+│   ├── src/                        # Front Vite + React (pages, composants, hooks)
+│   ├── server/                     # API Express : scraping, historique S3, auth Firebase, Airtable
+│   ├── shared/                     # Config et logique partagées front/serveur
+│   ├── tests/                      # Vitest
+│   └── Dockerfile                  # Image de production (non-root, healthcheck)
+├── parking_dashboard/              # Package Python de la collecte (Lambda / CLI)
+│   ├── config.py                   # Parkings et constantes
 │   ├── scraper.py                  # Scraping et parsing des pages Semepa
 │   └── storage.py                  # Historique CSV sur S3 (dossier local en dev)
-├── lambda/
-│   ├── lambda_function.py          # Handler AWS Lambda (collecte de production)
-│   └── build_zip.sh                # Package de déploiement (cible Linux ARM64)
-├── scripts/
-│   └── scrape_to_s3.py             # Même collecte en CLI (dev local, fallback CI)
-├── .github/workflows/
-│   └── scrape-parkings.yml         # Collecte de secours (désactivée)
-├── tests/                          # Pytest : parsing HTML, stockage, palette
+├── lambda/                         # Handler AWS Lambda (collecte de production) + build_zip.sh
+├── scripts/scrape_to_s3.py         # Même collecte en CLI (dev local, fallback CI)
+├── .github/workflows/              # Collecte de secours (désactivée)
+├── tests/                          # Pytest : parsing HTML, stockage
 ├── notebooks/parking.ipynb         # Exploration initiale du scraping
-├── .streamlit/config.toml          # Thème imposé (rendu identique partout)
-├── Dockerfile                      # Image non-root, healthcheck (VPS)
-├── docker-compose.yml              # Build depuis GitHub + labels Traefik (VPS)
-├── requirements.txt                # Dépendances de production
-└── requirements-dev.txt            # + pytest
+├── docker-compose.yml              # Déploiement VPS : build depuis GitHub + labels Traefik
+└── requirements*.txt               # Dépendances Python de la collecte
 ```
 
-Le cœur du projet est le package `parking_dashboard` : le scraping et le stockage n'importent pas Streamlit, ce qui permet de les réutiliser à l'identique dans trois contextes d'exécution, l'application web, la Lambda, et le script CLI, et de les tester sans réseau.
+Deux briques indépendantes : l'**application** (`web/`, Node) et la **collecte** (`parking_dashboard/`, Python, exécutée par la Lambda). Elles ne partagent que le fichier CSV sur S3.
 
 ## Installation locale
 
+### Application
+
 ```bash
 git clone https://github.com/Atomik31/Dashboard-parking.git
-cd Dashboard-parking
-pip install -r requirements.txt
-streamlit run dashboard_parking.py     # http://localhost:8501
+cd Dashboard-parking/web
+cp .env.example .env     # puis renseigner les valeurs (voir web/README.md)
+npm install
+npm run dev              # front http://localhost:5173, API http://localhost:3000
+npm test
 ```
 
-Sans configuration AWS, le dashboard fonctionne normalement ; seule la section historique affiche « Aucun historique disponible ». Pour la tester sans bucket, le collecteur sait écrire dans un dossier local :
+L'accès à l'application exige une connexion (Google ou e-mail, via Firebase). Les comptes sont enregistrés dans Airtable (e-mail, méthode, langue, date). Détails, variables d'environnement et mode développement : [web/README.md](web/README.md).
 
-```bash
-python -m scripts.scrape_to_s3 --local   # alimente history/ (ignoré par git)
-```
-
-### Tests
+### Collecte (Python)
 
 ```bash
 pip install -r requirements-dev.txt
+python -m scripts.scrape_to_s3 --local   # alimente history/ (ignoré par git)
 python -m pytest
 ```
 
@@ -105,33 +104,13 @@ Les tests couvrent le parsing HTML (nombre de places, « COMPLET », fermeture, 
 
 ## Déploiement
 
-### Dashboard — VPS (Docker Manager + Traefik)
+### Application — VPS (Docker + Traefik), via GitHub
 
-`docker-compose.yml` construit l'image directement depuis ce dépôt GitHub (`build.context` pointe vers l'URL du repo) — pas besoin de cloner le code à la main sur le serveur. L'image tourne non-root avec un healthcheck Streamlit. Traefik (déjà présent sur le VPS, `network_mode: host`) découvre le conteneur via ses labels et route `https://parking-aixpress.fr` vers son port 8501, avec certificat Let's Encrypt automatique (résolveur `letsencrypt`).
+Tout passe par ce dépôt. `docker-compose.yml` construit l'image depuis GitHub (`build.context` = `…/Dashboard-parking.git#main:web`). Traefik (déjà présent sur le VPS, `network_mode: host`) découvre le conteneur via ses labels et route `https://parking-aixpress.fr` vers son port 3000, avec certificat Let's Encrypt automatique. Le port 3000 n'est lié qu'à `127.0.0.1`.
 
-Les variables `S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (utilisateur IAM **lecteur**, `s3:GetObject` uniquement) donnent au dashboard l'accès en lecture à l'historique ; sans elles il fonctionne normalement, section historique vide.
+**Mise à jour = un `git push` sur `main`.** Un cron du VPS (`*/5 * * * *`, `autodeploy.sh`) compare le dernier commit de `main` à celui déployé ; en cas de différence, `deploy.sh` récupère le `docker-compose.yml` du dépôt puis lance `docker compose up -d --build`. Pour revenir en arrière : `git revert` puis push.
 
-Mise à jour après un push sur `main` :
-
-```bash
-cd /docker/dashboard-parking
-curl -fsSL https://raw.githubusercontent.com/Atomik31/Dashboard-parking/main/docker-compose.yml -o docker-compose.yml
-docker compose up -d --build
-```
-
-Un cron (`*/5 * * * *`) compare le dernier commit distant à celui déployé et relance ces commandes automatiquement en cas de nouveau push (voir `autodeploy.sh` sur le VPS).
-
-### Dashboard — Docker sur n'importe quelle machine
-
-```bash
-docker build -t dashboard-parking .
-docker run -d -p 8501:8501 --restart unless-stopped \
-  -e S3_BUCKET=dashboard-parking-aix \
-  -e AWS_ACCESS_KEY_ID=... \
-  -e AWS_SECRET_ACCESS_KEY=... \
-  -e AWS_DEFAULT_REGION=eu-west-3 \
-  --name dashboard-parking dashboard-parking
-```
+Les secrets ne sont jamais dans le dépôt : ils sont dans `/docker/dashboard-parking/.env` sur le VPS (`S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` — utilisateur IAM **lecteur**, `s3:GetObject` —, `AIRTABLE_TOKEN`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`).
 
 ### Collecte — AWS Lambda + EventBridge
 
@@ -164,7 +143,7 @@ GROUP BY parking, heure;
 
 ## Configuration
 
-Tout est centralisé dans `parking_dashboard/config.py` : liste des parkings (URL, capacité, coordonnées GPS), TTL du cache, seuils d'affichage, palette du graphique (9 couleurs fixes, une par parking, validées pour le contraste et le daltonisme sur fond sombre).
+Parkings (URL, capacité, coordonnées GPS), TTL du cache, seuils d'affichage et palette du graphique (9 couleurs fixes validées pour le contraste et le daltonisme sur fond sombre) : `web/shared/config.js` pour l'application, `parking_dashboard/config.py` pour la collecte. Garder les deux listes de parkings synchronisées.
 
 Le scraping extrait le nombre de places du HTML Semepa par expression régulière :
 
@@ -172,7 +151,7 @@ Le scraping extrait le nombre de places du HTML Semepa par expression régulièr
 <p class="nbPlaces"><span[^>]*>(\d+)</span>
 ```
 
-avec une pause de 0,5 s entre chaque parking pour ménager le site source. Aucune donnée personnelle n'est collectée : uniquement des compteurs publics.
+avec une pause de 0,5 s entre chaque parking pour ménager le site source. Les données de parkings sont des compteurs publics. L'application collecte uniquement, pour chaque compte : e-mail, méthode de connexion, langue et date de création (voir la politique de confidentialité dans l'application).
 
 ## Roadmap
 
@@ -180,6 +159,7 @@ avec une pause de 0,5 s entre chaque parking pour ménager le site source. Aucun
 - [x] Collecte serverless ponctuelle (Lambda + EventBridge)
 - [ ] Import RDS et analyse des patterns hebdomadaires
 - [ ] Prédiction de disponibilité (ML)
+- [x] Application React/Express avec connexion obligatoire (Firebase + Airtable)
 - [ ] CI GitHub Actions (lint + tests)
 - [ ] Notifications quand un parking se remplit
 
