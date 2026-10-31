@@ -31,7 +31,7 @@ Garde-fous : le serveur **refuse de démarrer** si `AUTH_DEV_BYPASS` est actif a
 | `FIREBASE_PROJECT_ID` | serveur | Projet Firebase attendu dans les jetons (`iss`/`aud`). **Absent = tout est refusé.** |
 | `FIREBASE_AUTH_DOMAIN` | serveur | (optionnel) ajoute le domaine d'auth à la CSP |
 | `AIRTABLE_TOKEN` | serveur, **secret** | PAT Airtable (écriture sur la base `appHnOPUpb7FbokMj`, table `tblquStqPWLSz41gj`). Jamais côté client. |
-| `S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | serveur, **secret** | Lecture de `history/parkings.csv` (IAM lecteur, `s3:GetObject`). Sans `S3_BUCKET` : dossier local `HISTORY_DIR` (défaut `history/`). |
+| `S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | serveur, **secret** | Lecture de `history/AAAA-MM.csv` (IAM lecteur, `s3:GetObject`). Sans `S3_BUCKET` : dossier local `HISTORY_DIR` (défaut `history/`). |
 | `HISTORY_DIR` | serveur | Dossier local de repli (ex. `../history`, alimenté par `python -m scripts.scrape_to_s3 --local`) |
 | `CORS_ORIGINS` | serveur | Origines autorisées (vide = CORS fermé, same-origin) |
 | `TRUST_PROXY` | serveur | Nombre de proxys de confiance pour le rate limit (1 derrière Traefik) |

@@ -1,14 +1,37 @@
-/* Lecture de l'historique (history/parkings.csv) : S3 si S3_BUCKET est défini, sinon dossier local HISTORY_DIR.
-   Port de parking_dashboard/storage.py (lecture seule). Schéma CSV :
+/* Lecture de l'historique (un fichier CSV par mois : history/AAAA-MM.csv, mois en UTC) : S3 si S3_BUCKET est défini,
+   sinon dossier local HISTORY_DIR. Port de parking_dashboard/storage.py (lecture seule). Schéma CSV :
    timestamp_utc,date,heure,parking,places_dispo,places_total,statut */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createTtlCache } from './cache.js';
 
-export const CLE_S3 = 'history/parkings.csv';
+export const cleS3 = mois => `history/${mois}.csv`;
 export const FENETRE_MAX_HEURES = 24;
 export const TTL_HISTORIQUE_MS = 5 * 60 * 1000;
+
+/* Mois (AAAA-MM, UTC) d'un instant en millisecondes. */
+export function moisDe(ms) {
+  return new Date(ms).toISOString().slice(0, 7);
+}
+
+/* Mois touchés par la plage [debutMs, finMs], dans l'ordre (deux au changement de mois). */
+export function moisCouvrant(debutMs, finMs) {
+  const d = new Date(debutMs);
+  let annee = d.getUTCFullYear();
+  let mois = d.getUTCMonth() + 1;
+  const dernier = moisDe(finMs);
+  const res = [];
+  for (;;) {
+    const courant = `${annee}-${String(mois).padStart(2, '0')}`;
+    res.push(courant);
+    if (courant >= dernier) return res;
+    if (mois === 12) {
+      annee++;
+      mois = 1;
+    } else mois++;
+  }
+}
 
 /* Analyse d'une ligne CSV (guillemets RFC 4180 gérés). */
 export function parseLigneCsv(ligne) {
@@ -59,10 +82,10 @@ export function parseHistorique(csv, debut, fin) {
   return lignesOk.map(({ t, parking, dispo, total }) => ({ t, parking, dispo, total }));
 }
 
-async function lireCsvS3(env) {
+async function lireCsvS3(env, mois) {
   const client = new S3Client({ region: env.AWS_DEFAULT_REGION || 'eu-west-3' });
   try {
-    const res = await client.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: CLE_S3 }));
+    const res = await client.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: cleS3(mois) }));
     return await res.Body.transformToString('utf-8');
   } catch (err) {
     if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) return null;
@@ -70,26 +93,33 @@ async function lireCsvS3(env) {
   }
 }
 
-async function lireCsvLocal(env) {
+async function lireCsvLocal(env, mois) {
   const dossier = env.HISTORY_DIR || 'history';
   try {
-    return await fs.readFile(path.resolve(dossier, 'parkings.csv'), 'utf-8');
+    return await fs.readFile(path.resolve(dossier, `${mois}.csv`), 'utf-8');
   } catch (err) {
     if (err.code === 'ENOENT') return null;
     throw err;
   }
 }
 
-/* `lireCsv` est injectable pour les tests. Le CSV est lu et analysé au plus une fois par TTL (fenêtre 24 h). */
+/* `lireCsv(mois)` est injectable pour les tests. Les fichiers mensuels couvrant la fenêtre de 24 h sont lus et analysés
+   au plus une fois par TTL. */
 export function createHistoryService({ env = process.env, lireCsv, ttlMs = TTL_HISTORIQUE_MS, now = () => Date.now() } = {}) {
-  const lecteur = lireCsv ?? (() => (env.S3_BUCKET ? lireCsvS3(env) : lireCsvLocal(env)));
+  const lecteur = lireCsv ?? (mois => (env.S3_BUCKET ? lireCsvS3(env, mois) : lireCsvLocal(env, mois)));
   const cache = createTtlCache({
     ttlMs,
     now,
     loader: async () => {
-      const csv = await lecteur();
       const fin = now();
-      return csv ? parseHistorique(csv, fin - FENETRE_MAX_HEURES * 3600_000, fin) : [];
+      const debut = fin - FENETRE_MAX_HEURES * 3600_000;
+      const parMois = await Promise.all(
+        moisCouvrant(debut, fin).map(async mois => {
+          const csv = await lecteur(mois);
+          return csv ? parseHistorique(csv, debut, fin) : [];
+        })
+      );
+      return parMois.flat().sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
     }
   });
   return {

@@ -1,4 +1,4 @@
-"""Historique des relevés : un fichier CSV unique, stocké sur S3 ou en local.
+"""Historique des relevés : un fichier CSV par mois, stocké sur S3 ou en local.
 
 Schéma pensé pour une ingestion ultérieure en base (RDS, DuckDB, pandas...) :
 
@@ -8,8 +8,13 @@ Schéma pensé pour une ingestion ultérieure en base (RDS, DuckDB, pandas...) :
 - date, heure   : heure locale Europe/Paris, pratiques pour l'analyse
 - places_dispo / places_total : entiers
 
+Un fichier par mois (`history/AAAA-MM.csv`, mois en UTC d'après timestamp_utc) :
+chaque relevé réécrit tout le fichier (S3 ne fait pas d'append), un fichier mensuel
+(~3 Mo) reste léger là où un fichier unique grossissait sans limite. L'ancien fichier
+`history/parkings.csv` (juillet à octobre 2026) est conservé comme archive, en lecture seule.
+
 Le backend est choisi par l'environnement :
-- si S3_BUCKET est défini, lecture/écriture sur S3 (clé `history/parkings.csv`) ;
+- si S3_BUCKET est défini, lecture/écriture sur S3 ;
 - sinon, dans un dossier local (HISTORY_DIR, par défaut `history/`), pratique
   pour le développement et les tests.
 """
@@ -25,51 +30,71 @@ from .config import TIMEZONE
 logger = logging.getLogger(__name__)
 
 COLONNES = ["timestamp_utc", "date", "heure", "parking", "places_dispo", "places_total", "statut"]
-CLE_S3 = "history/parkings.csv"
 DOSSIER_LOCAL_DEFAUT = "history"
-NOM_FICHIER = "parkings.csv"
+
+
+def mois_de(quand: datetime) -> str:
+    """Mois (UTC) d'un instant, au format AAAA-MM : nom du fichier qui le contient."""
+    return quand.astimezone(timezone.utc).strftime("%Y-%m")
+
+
+def mois_couvrant(debut: datetime, fin: datetime) -> list[str]:
+    """Liste ordonnée des mois (AAAA-MM) touchés par la plage [debut, fin]."""
+    annee, mois = debut.astimezone(timezone.utc).year, debut.astimezone(timezone.utc).month
+    dernier = mois_de(fin)
+    resultat = []
+    while True:
+        courant = f"{annee:04d}-{mois:02d}"
+        resultat.append(courant)
+        if courant >= dernier:
+            return resultat
+        annee, mois = (annee + 1, 1) if mois == 12 else (annee, mois + 1)
+
+
+def cle_s3(mois: str) -> str:
+    return f"history/{mois}.csv"
 
 
 def _bucket() -> str | None:
     return os.environ.get("S3_BUCKET") or None
 
 
-def _chemin_local() -> str:
-    return os.path.join(os.environ.get("HISTORY_DIR", DOSSIER_LOCAL_DEFAUT), NOM_FICHIER)
+def _chemin_local(mois: str) -> str:
+    return os.path.join(os.environ.get("HISTORY_DIR", DOSSIER_LOCAL_DEFAUT), f"{mois}.csv")
 
 
-def lire_historique_brut() -> str | None:
-    """Retourne le contenu du fichier CSV d'historique, ou None s'il n'existe pas."""
+def lire_historique_brut(mois: str) -> str | None:
+    """Retourne le contenu du fichier CSV du mois (AAAA-MM), ou None s'il n'existe pas."""
     bucket = _bucket()
     if bucket:
         import boto3
 
         s3 = boto3.client("s3")
         try:
-            objet = s3.get_object(Bucket=bucket, Key=CLE_S3)
+            objet = s3.get_object(Bucket=bucket, Key=cle_s3(mois))
         except s3.exceptions.NoSuchKey:
             return None
         return objet["Body"].read().decode("utf-8")
 
-    chemin = _chemin_local()
+    chemin = _chemin_local(mois)
     if not os.path.exists(chemin):
         return None
     with open(chemin, encoding="utf-8") as f:
         return f.read()
 
 
-def ecrire_historique_brut(contenu: str) -> None:
-    """Écrit (ou remplace) le fichier CSV d'historique."""
+def ecrire_historique_brut(contenu: str, mois: str) -> None:
+    """Écrit (ou remplace) le fichier CSV du mois (AAAA-MM)."""
     bucket = _bucket()
     if bucket:
         import boto3
 
         s3 = boto3.client("s3")
-        s3.put_object(Bucket=bucket, Key=CLE_S3, Body=contenu.encode("utf-8"), ContentType="text/csv")
-        logger.info("Écrit s3://%s/%s (%d octets)", bucket, CLE_S3, len(contenu))
+        s3.put_object(Bucket=bucket, Key=cle_s3(mois), Body=contenu.encode("utf-8"), ContentType="text/csv")
+        logger.info("Écrit s3://%s/%s (%d octets)", bucket, cle_s3(mois), len(contenu))
         return
 
-    chemin = _chemin_local()
+    chemin = _chemin_local(mois)
     os.makedirs(os.path.dirname(chemin), exist_ok=True)
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(contenu)
@@ -90,10 +115,11 @@ def construire_lignes(data: dict[str, dict], quand: datetime) -> list[list]:
 
 
 def ajouter_snapshot(data: dict[str, dict], quand: datetime | None = None) -> None:
-    """Ajoute un snapshot au fichier d'historique (créé avec en-tête si besoin)."""
+    """Ajoute un snapshot au fichier du mois (créé avec en-tête si besoin)."""
     quand = quand or datetime.now(timezone.utc)
+    mois = mois_de(quand)
 
-    existant = lire_historique_brut()
+    existant = lire_historique_brut(mois)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     if existant is None:
@@ -102,12 +128,13 @@ def ajouter_snapshot(data: dict[str, dict], quand: datetime | None = None) -> No
         buffer.write(existant)
     writer.writerows(construire_lignes(data, quand))
 
-    ecrire_historique_brut(buffer.getvalue())
+    ecrire_historique_brut(buffer.getvalue(), mois)
 
 
 def charger_historique(heures: int, maintenant: datetime | None = None):
     """Charge l'historique des `heures` dernières heures dans un DataFrame.
 
+    Lit les fichiers mensuels couvrant la plage (deux au changement de mois).
     Retourne un DataFrame (éventuellement vide) avec les colonnes de COLONNES,
     timestamp_utc parsé en datetime UTC, trié chronologiquement.
     """
@@ -116,11 +143,15 @@ def charger_historique(heures: int, maintenant: datetime | None = None):
     maintenant = maintenant or datetime.now(timezone.utc)
     debut = maintenant - timedelta(hours=heures)
 
-    contenu = lire_historique_brut()
-    if not contenu:
+    morceaux = []
+    for mois in mois_couvrant(debut, maintenant):
+        contenu = lire_historique_brut(mois)
+        if contenu:
+            morceaux.append(pd.read_csv(io.StringIO(contenu)))
+    if not morceaux:
         return pd.DataFrame(columns=COLONNES)
 
-    df = pd.read_csv(io.StringIO(contenu))
+    df = pd.concat(morceaux, ignore_index=True)
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
     df = df[(df["timestamp_utc"] >= debut) & (df["timestamp_utc"] <= maintenant)]
     return df.sort_values("timestamp_utc").reset_index(drop=True)

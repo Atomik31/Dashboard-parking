@@ -1,4 +1,4 @@
-"""Tests du stockage de l'historique (fichier CSV unique, backend local)."""
+"""Tests du stockage de l'historique (un fichier CSV par mois, backend local)."""
 from datetime import datetime, timezone
 
 import pytest
@@ -10,6 +10,8 @@ from parking_dashboard.storage import (
     charger_historique,
     construire_lignes,
     lire_historique_brut,
+    mois_couvrant,
+    mois_de,
 )
 
 SNAPSHOT = {
@@ -74,7 +76,7 @@ class TestConstruireLignes:
 class TestAjouterSnapshot:
     def test_premier_snapshot_cree_le_fichier_avec_entete(self, dossier_historique):
         ajouter_snapshot(SNAPSHOT, QUAND)
-        contenu = lire_historique_brut()
+        contenu = lire_historique_brut("2026-07")
         lignes = contenu.strip().splitlines()
         assert lignes[0] == ",".join(COLONNES)
         assert len(lignes) == 1 + len(SNAPSHOT)
@@ -83,7 +85,7 @@ class TestAjouterSnapshot:
         ajouter_snapshot(SNAPSHOT, QUAND)
         ajouter_snapshot(SNAPSHOT, QUAND.replace(minute=10))
         ajouter_snapshot(SNAPSHOT, QUAND.replace(minute=20))
-        contenu = lire_historique_brut()
+        contenu = lire_historique_brut("2026-07")
         lignes = contenu.strip().splitlines()
         assert len(lignes) == 1 + 3 * len(SNAPSHOT)
         # Un seul en-tête, pas un par snapshot
@@ -120,3 +122,36 @@ class TestPalette:
 
     def test_couleurs_uniques(self):
         assert len(set(COULEURS_SERIES)) == len(COULEURS_SERIES)
+
+
+class TestFichiersMensuels:
+    def test_mois_de_utilise_utc(self):
+        # 23:30 UTC le 31 juillet = 01:30 à Paris le 1er août : le fichier reste celui d'UTC
+        assert mois_de(datetime(2026, 7, 31, 23, 30, tzinfo=timezone.utc)) == "2026-07"
+
+    def test_mois_couvrant_un_seul_mois(self):
+        debut = datetime(2026, 7, 3, 8, tzinfo=timezone.utc)
+        assert mois_couvrant(debut, QUAND) == ["2026-07"]
+
+    def test_mois_couvrant_changement_de_mois_et_d_annee(self):
+        debut = datetime(2026, 12, 31, 20, tzinfo=timezone.utc)
+        fin = datetime(2027, 1, 1, 4, tzinfo=timezone.utc)
+        assert mois_couvrant(debut, fin) == ["2026-12", "2027-01"]
+
+    def test_snapshots_de_deux_mois_vont_dans_deux_fichiers(self, dossier_historique):
+        fin_juillet = datetime(2026, 7, 31, 23, 50, tzinfo=timezone.utc)
+        debut_aout = datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc)
+        ajouter_snapshot(SNAPSHOT, fin_juillet)
+        ajouter_snapshot(SNAPSHOT, debut_aout)
+        assert (dossier_historique / "2026-07.csv").exists()
+        assert (dossier_historique / "2026-08.csv").exists()
+        assert len(lire_historique_brut("2026-07").strip().splitlines()) == 1 + len(SNAPSHOT)
+
+    def test_charger_historique_lit_les_deux_mois_a_cheval(self, dossier_historique):
+        fin_juillet = datetime(2026, 7, 31, 23, 50, tzinfo=timezone.utc)
+        debut_aout = datetime(2026, 8, 1, 0, 10, tzinfo=timezone.utc)
+        ajouter_snapshot(SNAPSHOT, fin_juillet)
+        ajouter_snapshot(SNAPSHOT, debut_aout)
+        df = charger_historique(2, maintenant=datetime(2026, 8, 1, 0, 30, tzinfo=timezone.utc))
+        assert len(df) == 2 * len(SNAPSHOT)
+        assert df["timestamp_utc"].is_monotonic_increasing

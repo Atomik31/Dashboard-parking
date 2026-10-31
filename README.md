@@ -26,13 +26,13 @@ Le projet sépare strictement deux flux de données qui n'ont pas les mêmes con
 ```
                        ┌─> Cache serveur Express (TTL 10 min) ──> Affichage temps réel
 Sites Semepa ── Scraping (regex)
-                       └─> EventBridge ──> Lambda ──> S3 (parkings.csv) ──> Graphique historique
+                       └─> EventBridge ──> Lambda ──> S3 (AAAA-MM.csv) ──> Graphique historique
                             rate(10 min)                     └──> RDS / analyse / prédiction (à venir)
 ```
 
 **Le flux temps réel** vit dans le serveur Express de l'application (`web/server/`) : le premier visiteur déclenche un scrape, le résultat est partagé entre tous les utilisateurs pendant 10 minutes (cache mémoire). Si personne ne visite le dashboard, aucune requête n'est envoyée aux sites sources.
 
-**Le flux historique** est totalement découplé de l'application : une fonction AWS Lambda, déclenchée par EventBridge Scheduler toutes les 10 minutes, scrape les 9 parkings et ajoute un relevé au fichier `history/parkings.csv` du bucket S3. L'application n'est qu'un *lecteur* de ce fichier, il peut être en veille, planté ou redéployé sans qu'aucune donnée ne soit perdue.
+**Le flux historique** est totalement découplé de l'application : une fonction AWS Lambda, déclenchée par EventBridge Scheduler toutes les 10 minutes, scrape les 9 parkings et ajoute un relevé au fichier du mois en cours (`history/AAAA-MM.csv`) du bucket S3. L'application n'est qu'un *lecteur* de ces fichiers, elle peut être en veille, planté ou redéployé sans qu'aucune donnée ne soit perdue.
 
 ### Pourquoi Lambda plutôt qu'un cron GitHub Actions ?
 
@@ -40,7 +40,7 @@ La première version de la collecte tournait sur un cron GitHub Actions (`*/10 *
 
 ### Le format de l'historique
 
-Un seul fichier CSV, pensé pour être importé tel quel dans une base relationnelle :
+Un fichier CSV par mois (`history/2026-11.csv`, mois en UTC), pensé pour être importé tel quel dans une base relationnelle. Un fichier mensuel pèse ~3 Mo : le réécrire à chaque relevé reste rapide, alors qu'un fichier unique grossissait sans limite et a fini par saturer la Lambda (timeout, 128 Mo). L'historique de juillet à octobre 2026 reste dans l'archive `history/parkings.csv` (lecture seule, plus alimentée) :
 
 | timestamp_utc | date | heure | parking | places_dispo | places_total | statut |
 |---|---|---|---|---|---|---|
@@ -114,10 +114,10 @@ Les secrets ne sont jamais dans le dépôt : ils sont dans `/docker/dashboard-pa
 
 ### Collecte — AWS Lambda + EventBridge
 
-1. **Bucket S3** privé (ex. `dashboard-parking-aix`, région `eu-west-3`), **Versioning activé** : le fichier unique étant réécrit toutes les 10 minutes, le versioning protège d'un écrasement accidentel. Ajouter une règle de cycle de vie qui purge les versions non courantes après 30 jours.
+1. **Bucket S3** privé (ex. `dashboard-parking-aix`, région `eu-west-3`), **Versioning activé** : le fichier du mois étant réécrit toutes les 10 minutes, le versioning protège d'un écrasement accidentel. Ajouter une règle de cycle de vie qui purge les versions non courantes après 30 jours.
 2. **Rôle IAM** pour la fonction : `AWSLambdaBasicExecutionRole` (logs CloudWatch) + politique inline `s3:GetObject`/`s3:PutObject` limitée à `arn:aws:s3:::BUCKET/history/*`. Aucune clé d'accès dans la fonction : les permissions viennent du rôle d'exécution.
 3. **Package** : `./lambda/build_zip.sh` produit `dist/lambda-scraper.zip` (le package métier + `requests`, binaires ciblés `manylinux aarch64` ; boto3 est fourni par le runtime).
-4. **Fonction** : Python 3.13, architecture arm64, handler `lambda_function.lambda_handler`, timeout 120 s (le scrape prend ~20 s), 128 Mo, variable d'environnement `S3_BUCKET`.
+4. **Fonction** : Python 3.13, architecture arm64, handler `lambda_function.lambda_handler`, timeout 120 s (le scrape prend ~10 s), **512 Mo** (128 Mo ne suffit pas à lire/réécrire le fichier du mois), variable d'environnement `S3_BUCKET`.
 5. **Planification** : EventBridge Scheduler, `rate(10 minutes)`, fenêtre flexible désactivée, cible la fonction.
 
 Suivi dans CloudWatch Logs (`/aws/lambda/scrape-parkings`, rétention 30 jours suffisante).
@@ -132,12 +132,12 @@ COPY parkings FROM '...' CSV HEADER;
 ```
 ```python
 # pandas
-df = pd.read_csv("s3://dashboard-parking-aix/history/parkings.csv")
+df = pd.read_csv("s3://dashboard-parking-aix/history/2026-11.csv")  # ou history/parkings.csv pour l'archive juil.-oct. 2026
 ```
 ```sql
 -- DuckDB
 SELECT parking, heure, avg(places_dispo)
-FROM read_csv_auto('s3://.../history/parkings.csv')
+FROM read_csv_auto('s3://.../history/2026-*.csv')
 GROUP BY parking, heure;
 ```
 

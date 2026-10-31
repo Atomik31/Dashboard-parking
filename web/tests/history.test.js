@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHistoryService, parseHistorique, parseLigneCsv } from '../server/history.js';
+import { createHistoryService, moisCouvrant, moisDe, parseHistorique, parseLigneCsv } from '../server/history.js';
 import { createTtlCache } from '../server/cache.js';
 
 const NOW = Date.parse('2026-07-03T18:00:00Z');
@@ -30,6 +30,35 @@ describe('lecture de l\'historique', () => {
   });
   it('fichier absent -> []', async () => {
     expect(await createHistoryService({ lireCsv: async () => null, now: () => NOW }).get(6)).toEqual([]);
+  });
+});
+
+describe('fichiers mensuels', () => {
+  it('moisDe : mois UTC', () => {
+    expect(moisDe(Date.parse('2026-07-31T23:30:00Z'))).toBe('2026-07');
+    expect(moisDe(Date.parse('2026-08-01T00:00:00Z'))).toBe('2026-08');
+  });
+  it('moisCouvrant : un mois, deux mois, changement d\'année', () => {
+    expect(moisCouvrant(Date.parse('2026-07-02T10:00:00Z'), NOW)).toEqual(['2026-07']);
+    expect(moisCouvrant(Date.parse('2026-07-31T20:00:00Z'), Date.parse('2026-08-01T04:00:00Z'))).toEqual(['2026-07', '2026-08']);
+    expect(moisCouvrant(Date.parse('2026-12-31T20:00:00Z'), Date.parse('2027-01-01T04:00:00Z'))).toEqual(['2026-12', '2027-01']);
+  });
+  it('lit le fichier du mois courant et du précédent, fusionnés et triés', async () => {
+    const entete = 'timestamp_utc,date,heure,parking,places_dispo,places_total,statut';
+    const fichiers = {
+      '2026-07': `${entete}\n2026-07-31T23:50:00+00:00,2026-08-01,01:50:00,Carnot,50,675,✅ Ouvert`,
+      '2026-08': `${entete}\n2026-08-01T00:10:00+00:00,2026-08-01,02:10:00,Carnot,60,675,✅ Ouvert`
+    };
+    const lireCsv = vi.fn(async mois => fichiers[mois] ?? null);
+    const now = Date.parse('2026-08-01T00:30:00Z');
+    const rows = await createHistoryService({ lireCsv, now: () => now }).get(2);
+    expect(lireCsv.mock.calls.map(c => c[0])).toEqual(['2026-07', '2026-08']);
+    expect(rows.map(r => r.dispo)).toEqual([50, 60]);
+  });
+  it('un mois manquant n\'empêche pas de lire l\'autre', async () => {
+    const lireCsv = async mois => (mois === '2026-08' ? 'timestamp_utc,date,heure,parking,places_dispo,places_total,statut\n2026-08-01T00:10:00+00:00,x,x,Carnot,60,675,ok' : null);
+    const rows = await createHistoryService({ lireCsv, now: () => Date.parse('2026-08-01T00:30:00Z') }).get(2);
+    expect(rows).toHaveLength(1);
   });
 });
 
