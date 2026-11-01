@@ -1,5 +1,6 @@
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useI18n } from '../hooks/useI18n.jsx';
+import { interpoler } from '../lib/i18n.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import UserMenu from './UserMenu.jsx';
 
@@ -16,18 +17,18 @@ export default function Topbar({ derniereMaj, onActualiser, disabled }) {
           <span>
             <span className="brand-title">Parkings Aix-en-Provence</span>
             <br />
-            <span className="brand-sub">Places disponibles en temps réel</span>
+            <span className="brand-sub">{t.brand_sub}</span>
           </span>
         </a>
         <span className="spacer" />
         {derniereMaj && (
           <span className="live">
             <span className="dot" aria-hidden="true" />
-            <span>Mis à jour à {derniereMaj}</span>
+            <span>{interpoler(t.updated, { time: derniereMaj })}</span>
           </span>
         )}
         <button type="button" className="btn btn-primary" onClick={onActualiser} disabled={disabled}>
-          Actualiser
+          {t.refresh}
         </button>
         <ThemeToggle />
         <UserMenu email={user?.email} />

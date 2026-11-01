@@ -6,11 +6,13 @@ import ParkingList from '../components/ParkingList.jsx';
 import ParkingMap from '../components/ParkingMap.jsx';
 import Topbar from '../components/Topbar.jsx';
 import { useHistory } from '../hooks/useHistory.js';
+import { useI18n } from '../hooks/useI18n.jsx';
 import { useParkings } from '../hooks/useParkings.js';
 import { trierParkings } from '../lib/format.js';
 import { serieTotale } from '../lib/insights.js';
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const { data, loading, error, actualiser } = useParkings();
   /* Historique des 24 h : courbe du bandeau d'indicateurs et tendance sur 30 min de chaque parking */
   const { rows: rows24 } = useHistory(24);
@@ -25,14 +27,14 @@ export default function Dashboard() {
       <main className="wrap">
         <section className="page-head">
           <div>
-            <p className="eyebrow">Aix-en-Provence · 9 parkings publics</p>
-            <h1>Où se garer, maintenant&nbsp;?</h1>
-            <p>Une vue d'ensemble claire des places libres, une carte pour choisir près de votre destination, et l'historique pour anticiper.</p>
+            <p className="eyebrow">{t.dash_eyebrow}</p>
+            <h1>{t.dash_title}</h1>
+            <p>{t.dash_intro}</p>
           </div>
         </section>
         {error && (
           <div className="notice error" role="alert">
-            {error}
+            {error === 'rate' ? t.err_rate : t.err_fetch}
           </div>
         )}
         {data && (
@@ -45,7 +47,7 @@ export default function Dashboard() {
             <HistoryChart />
           </>
         )}
-        {loading && <Loader message="Récupération des données des parkings..." />}
+        {loading && <Loader message={t.loading_parkings} />}
       </main>
     </>
   );

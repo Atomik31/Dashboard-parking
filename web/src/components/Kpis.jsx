@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { PARKINGS, STATUT_OUVERT } from '../../shared/config.js';
+import { useI18n } from '../hooks/useI18n.jsx';
 import { fmtNombre, synthese } from '../lib/format.js';
+import { interpoler } from '../lib/i18n.js';
 import { meilleurChoix, occupationEntiere } from '../lib/insights.js';
 
 const W = 300;
@@ -36,6 +38,7 @@ const R = 34;
 const C = 2 * Math.PI * R;
 
 export default function Kpis({ parkings, serie }) {
+  const { t } = useI18n();
   const s = synthese(parkings);
   const capacite = parkings.filter(p => p.statut === STATUT_OUVERT).reduce((n, p) => n + p.capacite, 0);
   const occ = occupationEntiere(parkings);
@@ -43,24 +46,24 @@ export default function Kpis({ parkings, serie }) {
   return (
     <section className="kpis" aria-label="Indicateurs">
       <article className="card kpi kpi-hero">
-        <div className="eyebrow">Places libres</div>
+        <div className="eyebrow">{t.kpi_free}</div>
         <div className="kpi-value num">
           {fmtNombre(s.libres)}
-          <small>places</small>
+          <small>{t.kpi_places}</small>
         </div>
-        <div className="kpi-sub">{capacite ? `sur ${fmtNombre(capacite)} dans les parkings ouverts` : 'aucun parking ouvert'}</div>
+        <div className="kpi-sub">{capacite ? interpoler(t.kpi_of, { cap: fmtNombre(capacite) }) : t.kpi_none}</div>
         <Sparkline serie={serie} />
       </article>
       <article className="card kpi">
-        <div className="eyebrow">Parkings ouverts</div>
+        <div className="eyebrow">{t.kpi_open}</div>
         <div className="kpi-value num">
           {s.nbOuverts}
           <small>/ {PARKINGS.length}</small>
         </div>
-        <div className="kpi-sub">en service</div>
+        <div className="kpi-sub">{t.kpi_inservice}</div>
       </article>
       <article className="card kpi">
-        <div className="eyebrow">Occupation moyenne</div>
+        <div className="eyebrow">{t.kpi_occ}</div>
         <div className="ring-wrap" style={{ marginTop: 8 }}>
           <svg className="ring" viewBox="0 0 84 84" aria-hidden="true">
             <defs>
@@ -75,19 +78,19 @@ export default function Kpis({ parkings, serie }) {
               {occ === null ? '–' : `${occ} %`}
             </text>
           </svg>
-          <div className="kpi-sub">des places sont occupées</div>
+          <div className="kpi-sub">{t.kpi_occupied}</div>
         </div>
       </article>
       <article className="card kpi">
         <div className="best">
           <div>
-            <div className="eyebrow">★ Meilleur choix</div>
+            <div className="eyebrow">{t.kpi_best}</div>
             <div className="best-name">{best ? best.nom : '–'}</div>
           </div>
           {best && (
             <div className="best-meta">
-              <span className="chip good">{fmtNombre(best.places)} places</span>
-              <span>{Math.round((best.places / best.capacite) * 100)} % libres</span>
+              <span className="chip good">{interpoler(t.kpi_best_places, { n: fmtNombre(best.places) })}</span>
+              <span>{interpoler(t.pct_free, { pct: Math.round((best.places / best.capacite) * 100) })}</span>
             </div>
           )}
         </div>

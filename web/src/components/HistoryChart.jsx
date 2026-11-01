@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { COULEURS_SERIES, PARKINGS, PLAGES_HISTORIQUE } from '../../shared/config.js';
 import { useHistory } from '../hooks/useHistory.js';
+import { useI18n } from '../hooks/useI18n.jsx';
 import { cleJour, fmtHeure, graduations, fmtJour, fmtJourHeure, occupationPct, pivoterHistorique } from '../lib/format.js';
 import Loader from './Loader.jsx';
 import SegmentedControl from './SegmentedControl.jsx';
@@ -9,17 +10,13 @@ import SegmentedControl from './SegmentedControl.jsx';
 const NOMS = PARKINGS.map(p => p.nom);
 const COULEUR = Object.fromEntries(PARKINGS.map((p, i) => [p.nom, COULEURS_SERIES[i]]));
 const PLAGES = Object.entries(PLAGES_HISTORIQUE).map(([label, value]) => ({ label, value }));
-const MESURES = [
-  { label: 'Places libres', value: 'libres' },
-  { label: 'Occupation (%)', value: 'occupation' }
-];
 
-function InfoBulle({ active, payload, label, unite }) {
+function InfoBulle({ active, payload, label, unite, lang }) {
   if (!active || !payload?.length) return null;
   const lignes = [...payload].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   return (
     <div className="rtip">
-      <div className="rtip-title">{fmtJourHeure(label)}</div>
+      <div className="rtip-title">{fmtJourHeure(label, lang)}</div>
       {lignes.map(l => (
         <div className="rtip-row" key={l.dataKey}>
           <span>
@@ -37,6 +34,11 @@ function InfoBulle({ active, payload, label, unite }) {
 }
 
 export default function HistoryChart() {
+  const { t, lang } = useI18n();
+  const MESURES = [
+    { label: t.hist_free, value: 'libres' },
+    { label: t.hist_occ, value: 'occupation' }
+  ];
   const [heures, setHeures] = useState(PLAGES_HISTORIQUE['6 h']);
   const [mesure, setMesure] = useState('libres');
   const [selection, setSelection] = useState(NOMS);
@@ -54,11 +56,11 @@ export default function HistoryChart() {
     return (
       <g transform={`translate(${x},${y})`}>
         <text dy={16} textAnchor="middle" fill="var(--muted)" fontSize={11.5}>
-          {fmtHeure(ms)}
+          {fmtHeure(ms, lang)}
         </text>
         {afficherDate && (
           <text dy={32} textAnchor="middle" fill="var(--muted)" fontSize={11.5}>
-            {fmtJour(ms)}
+            {fmtJour(ms, lang)}
           </text>
         )}
       </g>
@@ -68,13 +70,13 @@ export default function HistoryChart() {
   let contenu;
   if (rows && rows.length === 0) {
     contenu = (
-      <div className="chart-empty">Aucun historique disponible sur cette période pour le moment. Il se construit automatiquement, un relevé toutes les 10 minutes.</div>
+      <div className="chart-empty">{t.hist_empty}</div>
     );
   } else if (selection.length === 0) {
-    contenu = <div className="chart-empty">Sélectionne au moins un parking pour afficher l'historique.</div>;
+    contenu = <div className="chart-empty">{t.hist_none}</div>;
   } else if (rows) {
     contenu = (
-      <div className="chart-box" role="img" aria-label="Historique d'occupation des parkings">
+      <div className="chart-box" role="img" aria-label={t.hist_aria}>
         <ResponsiveContainer width="100%" height={380}>
           <LineChart data={donnees} margin={{ top: 10, right: 12, bottom: 18, left: 4 }}>
             <CartesianGrid stroke="var(--track)" vertical={false} />
@@ -86,9 +88,9 @@ export default function HistoryChart() {
               tickLine={false}
               axisLine={false}
               width={58}
-              label={{ value: mesure === 'occupation' ? 'Occupation (%)' : 'Places libres', angle: -90, position: 'insideLeft', fill: 'var(--ink-2)', fontSize: 12.5, style: { textAnchor: 'middle' } }}
+              label={{ value: mesure === 'occupation' ? t.hist_occ : t.hist_free, angle: -90, position: 'insideLeft', fill: 'var(--ink-2)', fontSize: 12.5, style: { textAnchor: 'middle' } }}
             />
-            <Tooltip content={<InfoBulle unite={unite} />} cursor={{ stroke: 'var(--muted)', strokeDasharray: '3 3' }} isAnimationActive={false} />
+            <Tooltip content={<InfoBulle unite={unite} lang={lang} />} cursor={{ stroke: 'var(--muted)', strokeDasharray: '3 3' }} isAnimationActive={false} />
             {NOMS.filter(n => selection.includes(n)).map(nom => (
               <Line key={nom} type="monotone" dataKey={nom} name={nom} stroke={COULEUR[nom]} strokeWidth={2.2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
             ))}
@@ -104,12 +106,12 @@ export default function HistoryChart() {
     <section className="card history" aria-labelledby="h-titre">
       <div className="history-head">
         <div>
-          <p className="eyebrow">Historique d'occupation</p>
-          <h2 id="h-titre">Évolution des places sur la période</h2>
+          <p className="eyebrow">{t.hist_eyebrow}</p>
+          <h2 id="h-titre">{t.hist_title}</h2>
         </div>
         <div className="history-ctl">
-          <SegmentedControl label="Période" options={PLAGES} value={heures} onChange={setHeures} />
-          <SegmentedControl label="Mesure" options={MESURES} value={mesure} onChange={setMesure} />
+          <SegmentedControl label={t.hist_period} options={PLAGES} value={heures} onChange={setHeures} />
+          <SegmentedControl label={t.hist_measure} options={MESURES} value={mesure} onChange={setMesure} />
         </div>
       </div>
       <div className="chips">
@@ -121,7 +123,7 @@ export default function HistoryChart() {
         ))}
       </div>
       {contenu}
-      {loading && <Loader message="Chargement de l'historique..." />}
+      {loading && <Loader message={t.loading_history} />}
     </section>
   );
 }

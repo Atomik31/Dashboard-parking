@@ -6,7 +6,9 @@ import 'leaflet-gesture-handling/dist/leaflet-gesture-handling.min.css';
 import { useEffect } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { CENTRE_CARTE, ZOOM_CARTE } from '../../shared/config.js';
+import { useI18n } from '../hooks/useI18n.jsx';
 import { etatParking } from '../lib/format.js';
+import { libelleAffichage } from '../lib/i18n.js';
 
 /* Pastille DivIcon : seules des valeurs numériques et des constantes entrent dans le HTML (jamais de texte externe). */
 function pastille(parking) {
@@ -15,12 +17,7 @@ function pastille(parking) {
   return L.divIcon({ html: `<div class="pin ${etat}"><b>P</b>${valeur}</div>`, className: 'pin-wrap', iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const LEGENDE = [
-  ['good', 'Large (> 50 %)'],
-  ['warn', 'Limité'],
-  ['crit', 'Presque complet'],
-  ['closed', 'Fermé ou sans données']
-];
+const LEGENDE = ['good', 'warn', 'crit', 'closed'];
 const COULEUR = { good: 'var(--good)', warn: 'var(--warn)', crit: 'var(--crit)', closed: 'var(--closed)' };
 
 /* Centre la carte sur le parking choisi dans la liste. */
@@ -35,6 +32,7 @@ function Focus({ parkings, selection }) {
 }
 
 export default function ParkingMap({ parkings, selection, onSelect }) {
+  const { t } = useI18n();
   return (
     <div className="card map-card">
       <div id="map">
@@ -49,17 +47,17 @@ export default function ParkingMap({ parkings, selection, onSelect }) {
               eventHandlers={{ click: () => onSelect({ nom: p.nom, origine: 'carte' }) }}
             >
               <Tooltip direction="top" offset={[0, -22]}>
-                {p.nom} : {p.affichage} · MAJ {p.timestamp}
+                {p.nom} : {libelleAffichage(p.affichage, t)} · {t.card_updated} {p.timestamp}
               </Tooltip>
             </Marker>
           ))}
         </MapContainer>
       </div>
       <div className="legend" aria-hidden="true">
-        {LEGENDE.map(([etat, label]) => (
+        {LEGENDE.map(etat => (
           <span key={etat}>
             <i style={{ background: COULEUR[etat] }} />
-            {label}
+            {t[`legend_${etat}`]}
           </span>
         ))}
       </div>

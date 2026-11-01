@@ -22,7 +22,7 @@ export function useParkings() {
         if (id === enCours.current) setData(res);
       } catch (e) {
         if (e.status === 401) logout();
-        if (id === enCours.current) setError(e.status === 429 ? 'Trop de requêtes, réessaie dans un instant.' : 'Impossible de récupérer les données des parkings.');
+        if (id === enCours.current) setError(e.status === 429 ? 'rate' : 'fetch');
       } finally {
         if (id === enCours.current) setLoading(false);
       }

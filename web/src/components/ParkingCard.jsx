@@ -1,4 +1,6 @@
-import { LIBELLES_ETAT, etatParking, fmtNombre } from '../lib/format.js';
+import { useI18n } from '../hooks/useI18n.jsx';
+import { etatParking, fmtNombre } from '../lib/format.js';
+import { interpoler, libelleAffichage } from '../lib/i18n.js';
 
 const COULEUR = { good: 'var(--good)', warn: 'var(--warn)', crit: 'var(--crit)', closed: 'var(--closed)' };
 
@@ -9,11 +11,13 @@ function Tendance({ delta }) {
 }
 
 export default function ParkingCard({ parking, rang, tendance, actif, onSelect, cardRef }) {
-  const { nom, places, capacite, statut, affichage, timestamp } = parking;
+  const { t } = useI18n();
+  const { nom, places, capacite, statut, timestamp } = parking;
+  const affichage = libelleAffichage(parking.affichage, t);
   const etat = etatParking(statut, places, capacite);
   const pct = capacite ? Math.round((places / capacite) * 100) : 0;
-  const complet = etat !== 'closed' && affichage === 'COMPLET';
-  const chip = etat === 'closed' ? affichage : complet ? 'Complet' : LIBELLES_ETAT[etat];
+  const complet = etat !== 'closed' && parking.affichage === 'COMPLET';
+  const chip = etat === 'closed' ? affichage : complet ? t.card_full : t[`state_${etat}`];
   return (
     <button type="button" ref={cardRef} className={`card pcard${actif ? ' active' : ''}`} onClick={() => onSelect(nom)} aria-pressed={actif}>
       <span className="pcard-name">
@@ -27,7 +31,9 @@ export default function ParkingCard({ parking, rang, tendance, actif, onSelect, 
             <small>{affichage}</small>
           </span>
           <span className="meta">
-            <span>MAJ {timestamp}</span>
+            <span>
+              {t.card_updated} {timestamp}
+            </span>
             <span>—</span>
           </span>
         </>
@@ -36,20 +42,20 @@ export default function ParkingCard({ parking, rang, tendance, actif, onSelect, 
           <span className="pcard-count num">
             {fmtNombre(places)} <small>/ {fmtNombre(capacite)}</small>
           </span>
-          <span className="bar" role="img" aria-label={`${pct} % de places libres`}>
+          <span className="bar" role="img" aria-label={interpoler(t.pct_free, { pct })}>
             <i style={{ width: `${Math.max(3, pct)}%`, background: COULEUR[etat] }} />
           </span>
           <span className="meta">
             <span>
-              MAJ {timestamp}
+              {t.card_updated} {timestamp}
               {tendance !== null && tendance !== undefined && (
                 <>
                   {' · '}
-                  <Tendance delta={tendance} /> / 30 min
+                  <Tendance delta={tendance} /> {t.per30}
                 </>
               )}
             </span>
-            <span className="num">{pct} % libres</span>
+            <span className="num">{interpoler(t.pct_free, { pct })}</span>
           </span>
         </>
       )}

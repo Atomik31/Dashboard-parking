@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUT_OUVERT } from '../../shared/config.js';
+import { useI18n } from '../hooks/useI18n.jsx';
 import { etatParking } from '../lib/format.js';
 import { tendance30 } from '../lib/insights.js';
 import ParkingCard from './ParkingCard.jsx';
 
 const FILTRES = [
-  { value: 'tous', label: 'Tous' },
-  { value: 'dispo', label: 'Disponibles' },
-  { value: 'complets', label: 'Complets / fermés' }
+  { value: 'tous', cle: 'filter_all' },
+  { value: 'dispo', cle: 'filter_avail' },
+  { value: 'complets', cle: 'filter_full' }
 ];
 const TRIS = {
   dispo: (a, b) => (b.statut === STATUT_OUVERT) - (a.statut === STATUT_OUVERT) || b.places - a.places,
@@ -19,6 +20,7 @@ const estIndispo = p => p.statut !== STATUT_OUVERT || etatParking(p.statut, p.pl
 
 /* Filtres, tri et liste des parkings. `selection` = { nom, origine } ; un clic sur la carte fait défiler jusqu'à la carte. */
 export default function ParkingList({ parkings, historique, selection, onSelect, maintenant }) {
+  const { t } = useI18n();
   const [filtre, setFiltre] = useState('tous');
   const [tri, setTri] = useState('dispo');
   const refs = useRef({});
@@ -37,20 +39,20 @@ export default function ParkingList({ parkings, historique, selection, onSelect,
   return (
     <div>
       <div className="list-head">
-        <div className="segmented" role="group" aria-label="Filtrer les parkings">
+        <div className="segmented" role="group" aria-label={t.filter_label}>
           {FILTRES.map(f => (
             <button key={f.value} type="button" aria-pressed={filtre === f.value} onClick={() => setFiltre(f.value)}>
-              {f.label}
+              {t[f.cle]}
             </button>
           ))}
         </div>
         <label className="sr-only" htmlFor="tri-parkings">
-          Trier par
+          {t.sort_label}
         </label>
         <select id="tri-parkings" className="btn" value={tri} onChange={e => setTri(e.target.value)}>
-          <option value="dispo">Plus de places</option>
-          <option value="taux">Taux de places libres</option>
-          <option value="nom">Nom (A–Z)</option>
+          <option value="dispo">{t.sort_places}</option>
+          <option value="taux">{t.sort_rate}</option>
+          <option value="nom">{t.sort_name}</option>
         </select>
       </div>
       <div className="plist">
@@ -67,7 +69,7 @@ export default function ParkingList({ parkings, historique, selection, onSelect,
             }}
           />
         ))}
-        {visibles.length === 0 && <p className="chart-empty">Aucun parking ne correspond à ce filtre.</p>}
+        {visibles.length === 0 && <p className="chart-empty">{t.no_match}</p>}
       </div>
     </div>
   );

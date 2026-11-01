@@ -2,24 +2,28 @@ import { TIMEZONE } from '../../shared/config.js';
 
 export { fmtNombre, etatParking, trierParkings, synthese, occupationPct, COULEURS_ETAT, LIBELLES_ETAT } from '../../shared/parking.js';
 
-const heure = new Intl.DateTimeFormat('fr-FR', { timeZone: TIMEZONE, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' });
-const jourHeure = new Intl.DateTimeFormat('fr-FR', {
-  timeZone: TIMEZONE,
-  hourCycle: 'h23',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit'
-});
-const jour = new Intl.DateTimeFormat('fr-FR', { timeZone: TIMEZONE, day: '2-digit', month: '2-digit' });
+const LOCALES = { fr: 'fr-FR', en: 'en-GB' };
+const memo = new Map();
+/* Formateurs de date (Europe/Paris) par langue, créés une seule fois. */
+function formateurs(lang) {
+  const locale = LOCALES[lang] ?? LOCALES.fr;
+  if (!memo.has(locale)) {
+    memo.set(locale, {
+      heure: new Intl.DateTimeFormat(locale, { timeZone: TIMEZONE, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }),
+      jourHeure: new Intl.DateTimeFormat(locale, { timeZone: TIMEZONE, hourCycle: 'h23', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      jour: new Intl.DateTimeFormat(locale, { timeZone: TIMEZONE, day: '2-digit', month: '2-digit' })
+    });
+  }
+  return memo.get(locale);
+}
 
 /* ms epoch -> « HH:MM » (Europe/Paris) */
-export const fmtHeure = ms => heure.format(ms);
+export const fmtHeure = (ms, lang = 'fr') => formateurs(lang).heure.format(ms);
 /* ms epoch -> « JJ/MM HH:MM » (Europe/Paris) */
-export const fmtJourHeure = ms => jourHeure.format(ms).replace(',', '');
-export const fmtJour = ms => jour.format(ms);
+export const fmtJourHeure = (ms, lang = 'fr') => formateurs(lang).jourHeure.format(ms).replace(',', '');
+export const fmtJour = (ms, lang = 'fr') => formateurs(lang).jour.format(ms);
 /* Clé de jour (Europe/Paris) pour détecter un changement de jour sur l'axe */
-export const cleJour = ms => jour.format(ms);
+export const cleJour = ms => formateurs('fr').jour.format(ms);
 
 /* Données d'historique brutes [{t, parking, dispo, total}] -> lignes pivotées par horodatage :
    [{ ms, Bellegarde: 123, ... }], avec la mesure choisie. */
