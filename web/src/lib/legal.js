@@ -3,7 +3,7 @@
 export const EDITEUR = 'Julien CHARLIER';
 export const CONTACT = 'contact@codaix.fr';
 export const SITE = 'https://parking-aixpress.fr';
-export const MAJ_LEGAL = '31 octobre 2026';
+export const MAJ_LEGAL = '1er novembre 2026';
 
 const GOOGLE = 'Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043, États-Unis';
 const AIRTABLE = 'Formagrid, Inc. (Airtable), 155 5th Street, San Francisco, CA 94103, États-Unis';
@@ -70,13 +70,8 @@ export const LEGAL_PAGES = {
       {
         h: 'Données collectées',
         p: [
-          'Lors de la création d’un compte ou de la première connexion, nous enregistrons :',
-          '• ton adresse e-mail (en minuscules) ;',
-          '• ton identifiant de compte technique (UID Firebase) ;',
-          '• la méthode de connexion (Google ou e-mail) ;',
-          '• ta langue d’affichage (français ou anglais) ;',
-          '• la date de création du compte.',
-          'Ton mot de passe n’est jamais connu de l’éditeur : il est géré et chiffré par Firebase Authentication. Aucune donnée de localisation, aucune mesure d’audience et aucun traceur publicitaire ne sont collectés. Des journaux techniques (adresse IP, date) peuvent être conservés temporairement par l’hébergeur pour la sécurité et le bon fonctionnement du Service.'
+          'Lors de la création d’un compte ou de la connexion, nous enregistrons uniquement les informations nécessaires à la gestion de ton compte : tes identifiants de connexion, tes préférences d’affichage et des informations techniques liées à ton compte.',
+          'Ton mot de passe n’est jamais connu de l’éditeur : il est géré et protégé par Firebase Authentication. Aucune donnée de localisation, aucune mesure d’audience et aucun traceur publicitaire ne sont collectés. Des journaux techniques peuvent être conservés temporairement par l’hébergeur pour la sécurité et le bon fonctionnement du Service.'
         ]
       },
       {
