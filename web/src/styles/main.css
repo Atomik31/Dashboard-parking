@@ -169,8 +169,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ---------- Corps : carte + liste ---------- */
 .main-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr); gap: 14px; margin-top: 14px; align-items: start; }
 .map-card { overflow: hidden; position: sticky; top: 84px; }
-/* Tuiles OpenStreetMap (clair) ; en thème sombre, on inverse les couleurs par filtre CSS. */
-:root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92) saturate(0.7); }
+/* Carte Google classique, identique en thème clair et sombre (pas de filtre sur les tuiles : rues et repères lisibles). */
 #map { height: min(72vh, 720px); min-height: 440px; background: var(--surface-2); }
 .legend {
   position: absolute; left: 14px; bottom: 14px; z-index: 500; display: flex; flex-wrap: wrap; gap: 6px 14px;
@@ -258,7 +257,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pin {
   transform: translate(-50%, -50%); display: flex; align-items: center; gap: 5px; width: max-content; height: 32px; padding: 0 11px 0 8px;
   border-radius: 999px; font: 700 13px var(--font); white-space: nowrap; color: #fff;
-  border: 2px solid var(--surface); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  border: 2px solid #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
 }
 .pin b { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 6px; background: rgba(255, 255, 255, 0.22); font-size: 10.5px; }
 .pin.warn { color: #3a2600; }
@@ -511,7 +510,7 @@ select.btn { appearance: none; padding-right: 12px; }
 /* Cartes de la liste */
 .pcard { font: inherit; color: inherit; }
 .pcard:focus-visible { outline-offset: 3px; }
-.pin { background: transparent; border: 0; }
+.pin-wrap { background: transparent; border: 0; }
 .pcard[hidden] { display: none; }
 
 /* Thème : tuiles de carte assombries en mode sombre (carte Google claire par défaut) */
