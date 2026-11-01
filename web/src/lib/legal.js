@@ -1,6 +1,6 @@
 /* Textes juridiques (français). Modèle à relire et à adapter à la situation réelle de l'éditeur. */
 
-export const EDITEUR = 'Julien CHARLIER';
+export const EDITEUR = 'Codaix';
 export const CONTACT = 'contact@codaix.fr';
 export const SITE = 'https://parking-aixpress.fr';
 export const MAJ_LEGAL = '1er novembre 2026';
@@ -127,10 +127,8 @@ export const LEGAL_PAGES = {
       {
         h: 'Éditeur du site',
         p: [
-          `${SITE} est édité à titre non professionnel par ${EDITEUR}, personne physique.`,
-          'Contact : ' + CONTACT,
-          'Directeur de la publication : ' + EDITEUR + '.',
-          'Conformément à l’article 6-III-2 de la loi n° 2004-575 du 21 juin 2004 (LCEN), l’éditeur, agissant à titre non professionnel, a transmis ses éléments d’identification à l’hébergeur ; ils peuvent être communiqués sur demande de l’autorité judiciaire.'
+          `${SITE} est édité par ${EDITEUR}.`,
+          'Contact : ' + CONTACT
         ]
       },
       {
