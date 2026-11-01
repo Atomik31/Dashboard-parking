@@ -4,8 +4,21 @@ Disponibilité en temps réel des 9 parkings publics d'Aix-en-Provence (Bellegar
 
 **App :** https://parking-aixpress.fr/
 
-![Carte des parkings](Parkings_map.png)
-![Historique d'occupation](Historique_d'occupation.png)
+## Aperçu
+
+**Page de connexion** : vidéo promo, carte « places libres maintenant » qui défile parking par parking, connexion avec Google ou e-mail.
+
+![Page de connexion](docs/screenshots/landing.png)
+
+**Tableau de bord** : indicateurs, carte Google liée à la liste, tendance sur 30 min de chaque parking.
+
+![Tableau de bord](docs/screenshots/dashboard.png)
+
+**Historique d'occupation** : courbes par parking sur 1, 6, 12 ou 24 h.
+
+![Historique d'occupation](docs/screenshots/historique.png)
+
+Thèmes clair et sombre, interface en français et en anglais.
 
 ## La problématique
 
