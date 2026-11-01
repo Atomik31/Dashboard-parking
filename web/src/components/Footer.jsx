@@ -8,7 +8,6 @@ export default function Footer() {
   const { rouvrir } = useConsent();
   return (
     <footer className="footer">
-      <div>{t.footer_credit}</div>
       <nav aria-label="Liens légaux">
         <Link to="/cgu">{t.cgu}</Link>
         <Link to="/confidentialite">{t.privacy}</Link>
