@@ -37,6 +37,18 @@ describe('API', () => {
     expect(r.headers.get('x-powered-by')).toBeNull();
     expect(r.headers.get('access-control-allow-origin')).toBeNull();
   });
+  it('/api/public/live : accessible sans jeton, champs en liste blanche uniquement', async () => {
+    scraper.mockResolvedValueOnce({
+      updatedAt: '2026-07-03T10:00:00.000Z',
+      parkings: [{ nom: 'Carnot', places: 100, capacite: 675, statut: '✅ Ouvert', affichage: '100 / 675', latitude: 43.5, longitude: 5.4, timestamp: '12:00:00', secret: 'x' }]
+    });
+    const r = await get('/api/public/live');
+    expect(r.status).toBe(200);
+    const corps = await r.json();
+    expect(Object.keys(corps).sort()).toEqual(['parkings', 'updatedAt']);
+    expect(Object.keys(corps.parkings[0]).sort()).toEqual(['affichage', 'capacite', 'nom', 'places', 'statut']);
+    expect(JSON.stringify(corps)).not.toMatch(/latitude|longitude|secret|timestamp/);
+  });
   it.each(['/api/parkings', '/api/history?hours=6'])('%s sans jeton -> 401', async p => expect((await get(p)).status).toBe(401));
   it('refuse un jeton invalide -> 401', async () => expect((await get('/api/parkings', 'invalidtoken00')).status).toBe(401));
   it('refuse un schéma non Bearer -> 401', async () => {

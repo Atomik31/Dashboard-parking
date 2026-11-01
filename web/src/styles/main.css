@@ -295,7 +295,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); }
 .rot-line .rot { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #fff; height: 1.5em; min-width: 22ch; }
 
-/* Carte « parkings couverts » */
+/* Carte « places libres maintenant » : un parking à la fois */
+.live-card { margin-top: 26px; width: min(380px, 100%); border-radius: 18px; padding: 16px 18px; }
+.live-card .eyebrow { color: rgba(255, 255, 255, 0.7); }
+.live-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.live-main { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; }
+.live-name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.live-num { font-size: 40px; font-weight: 800; line-height: 1; }
+.live-card .bar { background: rgba(255, 255, 255, 0.14); }
+.live-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 12.5px; color: rgba(255, 255, 255, 0.78); }
+.live-dots { display: inline-flex; gap: 5px; }
+.live-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: background 0.3s, transform 0.3s; }
+.live-dots i.on { background: #fff; transform: scale(1.3); }
+.swap { animation: swap 0.45s ease both; }
+@keyframes swap { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Carte « parkings couverts » (repli si l'aperçu en direct est indisponible) */
 .glass { background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(14px); box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.7); }
 .covered { margin-top: 26px; width: min(420px, 100%); border-radius: 18px; padding: 16px 18px; }
 .covered .eyebrow { color: rgba(255, 255, 255, 0.7); }

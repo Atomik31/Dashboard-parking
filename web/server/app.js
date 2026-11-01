@@ -11,6 +11,7 @@ import { upsertCompte } from './airtable.js';
 import { assertConfigSure, bypassActif, createDevVerifier, createTokenVerifier, requireAuth } from './auth.js';
 import { createTtlCache } from './cache.js';
 import { createHistoryService } from './history.js';
+import { apercuPublic } from './public.js';
 import { scrapeAll } from './scraper.js';
 import { emailValide, methodeDepuisProvider, parseHeures, parseLangue } from './validation.js';
 
@@ -87,6 +88,18 @@ export function createApp({ env = process.env, verify, scraper, history, comptes
   app.use(express.json({ limit: '4kb' }));
 
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+  /* Aperçu public pour la page de connexion : lit le même cache partagé (donc au plus un scraping de la source par TTL,
+     quel que soit le nombre de visiteurs), champs en liste blanche, limite par IP dédiée. */
+  app.get('/api/public/live', limiteur(60_000, 30), async (_req, res) => {
+    try {
+      res.set('Cache-Control', 'public, max-age=60');
+      res.json(apercuPublic(await parkingsCache.get()));
+    } catch (err) {
+      log.error(`Aperçu public indisponible: ${err.message}`);
+      res.status(502).json({ error: 'Aperçu indisponible' });
+    }
+  });
 
   app.get('/api/parkings', auth, async (_req, res, next) => {
     try {
