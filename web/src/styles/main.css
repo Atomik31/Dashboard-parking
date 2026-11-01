@@ -433,7 +433,10 @@ select.btn { appearance: none; padding-right: 12px; }
 .chart-empty { padding: 26px 8px; color: var(--ink-2); }
 
 /* Connexion : formulaire */
-.auth { min-height: calc(100vh - 96px); }
+.auth { min-height: 100vh; }
+.auth-tools { display: inline-flex; align-items: center; gap: 10px; }
+.auth-box .terms .linkbtn { font-size: 12.5px; font-weight: 400; color: var(--ink-2); }
+.auth-box .terms .linkbtn:hover { color: var(--accent); }
 .auth-box .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 16px; }
 .auth-box .tabs button { border: 0; background: transparent; padding: 9px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--ink-2); }
 .auth-box .tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
@@ -465,7 +468,8 @@ select.btn { appearance: none; padding-right: 12px; }
 .footer button { background: none; border: 0; padding: 0; color: var(--ink-2); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .footer button:hover { color: var(--accent); }
 .lang { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--border); }
-.lang button { text-decoration: none; padding: 2px 9px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.lang button { background: none; border: 0; font: inherit; text-decoration: none; padding: 2px 9px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.6; }
+.lang button:hover { color: var(--ink); }
 .lang button.on { background: var(--accent-soft); color: var(--accent); }
 .footer { padding-inline: 16px; }
 .footer nav { align-items: center; }

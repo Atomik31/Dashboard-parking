@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import CookieBanner from './components/CookieBanner.jsx';
 import Footer from './components/Footer.jsx';
 import Loader from './components/Loader.jsx';
@@ -18,6 +18,10 @@ function Home() {
 }
 
 export default function App() {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  /* Pas de pied de page sur l'écran de connexion (ses liens légaux sont intégrés au formulaire) */
+  const ecranConnexion = pathname === '/' && !user;
   return (
     <div className="app">
       <div className="app-content">
@@ -31,7 +35,7 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
-      <Footer />
+      {!ecranConnexion && <Footer />}
       <CookieBanner />
     </div>
   );

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useI18n } from '../hooks/useI18n.jsx';
+import { useConsent } from '../hooks/useConsent.jsx';
+import LangSwitch from './LangSwitch.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 
 const MIN_PASSWORD = 8;
@@ -21,6 +23,7 @@ function GoogleIcon() {
 /* Connexion / création de compte : Google ou e-mail + mot de passe. */
 export default function AuthCard() {
   const { t } = useI18n();
+  const { rouvrir } = useConsent();
   const { configured, signInGoogle, signInEmail, signUpEmail, resetPassword } = useAuth();
   const [mode, setMode] = useState('in');
   const [email, setEmail] = useState('');
@@ -97,7 +100,10 @@ export default function AuthCard() {
         <span className="logo" aria-hidden="true">
           P
         </span>
-        <ThemeToggle />
+        <span className="auth-tools">
+          <LangSwitch />
+          <ThemeToggle />
+        </span>
       </div>
       <h1 id="auth-title">{signingUp ? t.welcome_up : t.welcome_in}</h1>
       <p className="auth-sub">{signingUp ? t.welcome_up_sub : t.login_sub}</p>
@@ -174,6 +180,12 @@ export default function AuthCard() {
         <Link to="/cgu">{t.cgu}</Link>
         {t.accept_terms_b}
         <Link to="/confidentialite">{t.privacy}</Link>.
+        <br />
+        <Link to="/mentions-legales">{t.legal}</Link>
+        {' · '}
+        <button type="button" className="linkbtn" onClick={rouvrir}>
+          {t.cookies}
+        </button>
       </p>
     </div>
   );
