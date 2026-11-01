@@ -7,20 +7,20 @@ export default function CookieBanner() {
   const { bandeauOuvert, consent, choisir, fermer } = useConsent();
   if (!bandeauOuvert) return null;
   return (
-    <div className="pk-cookie" role="dialog" aria-modal="false" aria-labelledby="ck-title">
+    <div className="cookies" role="dialog" aria-modal="false" aria-labelledby="ck-title">
       <div>
         <strong id="ck-title">{t.cookie_title}</strong>
         <p>{t.cookie_text}</p>
-        {consent && <p className="pk-cookie-state">{consent === 'accepted' ? t.cookie_saved_accept : t.cookie_saved_refuse}</p>}
+        {consent && <p className="cookies-state">{consent === 'accepted' ? t.cookie_saved_accept : t.cookie_saved_refuse}</p>}
       </div>
-      <div className="pk-cookie-actions">
+      <div className="cookies-actions">
         <Link to="/confidentialite" onClick={fermer}>
           {t.cookie_more}
         </Link>
-        <button type="button" className="pk-btn pk-btn-ghost" onClick={() => choisir('refused')}>
+        <button type="button" className="btn" onClick={() => choisir('refused')}>
           {t.cookie_refuse}
         </button>
-        <button type="button" className="pk-btn pk-btn-primary" onClick={() => choisir('accepted')}>
+        <button type="button" className="btn btn-primary" onClick={() => choisir('accepted')}>
           {t.cookie_accept}
         </button>
       </div>

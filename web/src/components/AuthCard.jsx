@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useI18n } from '../hooks/useI18n.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
 const MIN_PASSWORD = 8;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -91,17 +92,16 @@ export default function AuthCard() {
   const pwType = show ? 'text' : 'password';
 
   return (
-    <section className="pk-auth" aria-labelledby="auth-title">
-      <div className="pk-auth-head">
-        <div className="pk-logo">P</div>
-        <div>
-          <h1 id="auth-title" className="pk-title">
-            {t.app_name}
-          </h1>
-          <div className="pk-subtitle">{t.login_sub}</div>
-        </div>
+    <div className="auth-box">
+      <div className="auth-top">
+        <span className="logo" aria-hidden="true">
+          P
+        </span>
+        <ThemeToggle />
       </div>
-      <div className="pk-tabs" role="tablist">
+      <h1 id="auth-title">{signingUp ? t.welcome_up : t.welcome_in}</h1>
+      <p className="auth-sub">{signingUp ? t.welcome_up_sub : t.login_sub}</p>
+      <div className="tabs" role="tablist">
         <button type="button" role="tab" aria-selected={!signingUp} onClick={() => switchMode('in')}>
           {t.tab_in}
         </button>
@@ -109,21 +109,19 @@ export default function AuthCard() {
           {t.tab_up}
         </button>
       </div>
-      <button type="button" className="pk-gbtn" onClick={google} disabled={busy}>
+      <button type="button" className="btn btn-google" onClick={google} disabled={busy}>
         <GoogleIcon />
         <span>{signingUp ? t.google_up : t.google}</span>
       </button>
-      <p className="pk-sep">
-        <span>{t.or_mail}</span>
-      </p>
-      <form onSubmit={submit} noValidate>
+      <div className="sep">{t.or_mail}</div>
+      <form onSubmit={submit} noValidate aria-labelledby="auth-title">
         <label>
           {t.email}
-          <input type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} />
+          <input type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} placeholder="vous@exemple.fr" />
         </label>
         <label>
           {t.password}
-          <span className="pk-pwrap">
+          <span className="pwrap">
             <input
               type={pwType}
               autoComplete={signingUp ? 'new-password' : 'current-password'}
@@ -132,7 +130,7 @@ export default function AuthCard() {
               placeholder={signingUp ? t.password_ph : ''}
               maxLength={128}
             />
-            <button type="button" className="pk-eye" onClick={() => setShow(s => !s)} aria-label={show ? t.hide_l : t.show_l}>
+            <button type="button" className="eye" onClick={() => setShow(s => !s)} aria-label={show ? t.hide_l : t.show_l}>
               {show ? t.hide : t.show}
             </button>
           </span>
@@ -150,33 +148,33 @@ export default function AuthCard() {
               maxLength={128}
             />
             {(mismatch || matching) && (
-              <span className={`pk-match ${mismatch ? 'ko' : 'ok'}`} role="status">
+              <span className={`match ${mismatch ? 'ko' : 'ok'}`} role="status">
                 {mismatch ? t.match_ko : t.match_ok}
               </span>
             )}
           </label>
         )}
-        <button type="submit" className="pk-btn pk-btn-primary pk-wide" disabled={busy}>
+        <button type="submit" className="btn btn-primary btn-wide" disabled={busy}>
           {busy ? '…' : signingUp ? t.go_up : t.go_in}
         </button>
       </form>
       {!signingUp && (
-        <p className="pk-fine">
-          <button type="button" className="pk-link" onClick={forgot}>
+        <p className="fine">
+          <button type="button" className="linkbtn" onClick={forgot}>
             {t.forgot}
           </button>
         </p>
       )}
-      <p className={`pk-msg ${msg ? msg.c : ''}`} role="status" aria-live="polite">
+      <p className={`msg ${msg ? msg.c : ''}`} role="status" aria-live="polite">
         {msg ? msg.m : ''}
       </p>
-      {!configured && <p className="pk-note">{t.not_configured}</p>}
-      <p className="pk-terms">
+      {!configured && <p className="note">{t.not_configured}</p>}
+      <p className="terms">
         {t.accept_terms_a}
         <Link to="/cgu">{t.cgu}</Link>
         {t.accept_terms_b}
         <Link to="/confidentialite">{t.privacy}</Link>.
       </p>
-    </section>
+    </div>
   );
 }

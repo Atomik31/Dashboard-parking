@@ -6,12 +6,12 @@ export default function LegalPage({ page }) {
   const { t, lang } = useI18n();
   const doc = LEGAL_PAGES[page];
   return (
-    <main className="pk-legal" lang="fr">
-      <Link to="/" className="pk-link">
+    <main className="legal" lang="fr">
+      <Link to="/" className="back">
         ← {t.back}
       </Link>
       <h1>{doc.title}</h1>
-      <p className="pk-legal-meta">
+      <p className="meta">
         {t.last_update} : {MAJ_LEGAL}
         {lang === 'en' && <> — {t.legal_fr_only}</>}
       </p>

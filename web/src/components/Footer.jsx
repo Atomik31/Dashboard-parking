@@ -7,9 +7,9 @@ export default function Footer() {
   const { t } = useI18n();
   const { rouvrir } = useConsent();
   return (
-    <footer className="pk-footer">
+    <footer className="footer">
       <div>{t.footer_credit}</div>
-      <nav className="pk-footer-links" aria-label="Liens légaux">
+      <nav aria-label="Liens légaux">
         <Link to="/cgu">{t.cgu}</Link>
         <Link to="/confidentialite">{t.privacy}</Link>
         <Link to="/mentions-legales">{t.legal}</Link>

@@ -19,8 +19,8 @@ function Home() {
 
 export default function App() {
   return (
-    <div className="pk-app">
-      <div className="pk-content">
+    <div className="app">
+      <div className="app-content">
         <Routes>
           <Route path="/" element={<Home />} />
           {/* pages juridiques : accessibles sans être connecté */}

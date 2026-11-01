@@ -1,45 +1,58 @@
-import { COULEURS_ETAT, LIBELLES_ETAT, etatParking, fmtNombre } from '../lib/format.js';
+import { LIBELLES_ETAT, etatParking, fmtNombre } from '../lib/format.js';
 
-export default function ParkingCard({ parking }) {
+const COULEUR = { good: 'var(--good)', warn: 'var(--warn)', crit: 'var(--crit)', closed: 'var(--closed)' };
+
+function Tendance({ delta }) {
+  if (delta === null || delta === undefined) return null;
+  if (delta === 0) return <span className="trend flat">–</span>;
+  return delta > 0 ? <span className="trend up">▲ {delta}</span> : <span className="trend down">▼ {Math.abs(delta)}</span>;
+}
+
+export default function ParkingCard({ parking, rang, tendance, actif, onSelect, cardRef }) {
   const { nom, places, capacite, statut, affichage, timestamp } = parking;
   const etat = etatParking(statut, places, capacite);
-  let chip;
-  let corps;
-  let pctLibres = '';
-  if (etat === 'closed') {
-    chip = affichage;
-    corps = (
-      <div className="pk-places">
-        <span className="pk-cap">{affichage}</span>
-      </div>
-    );
-  } else {
-    const pct = Math.round((places / capacite) * 100);
-    chip = affichage === 'COMPLET' ? 'Complet' : LIBELLES_ETAT[etat];
-    pctLibres = `${pct} % libres`;
-    corps = (
-      <>
-        <div className="pk-places">
-          <span className="pk-big">{places}</span>
-          <span className="pk-cap">/ {fmtNombre(capacite)} places</span>
-        </div>
-        <div className="pk-bar">
-          <i style={{ width: `${Math.max(3, pct)}%`, background: COULEURS_ETAT[etat] }} />
-        </div>
-      </>
-    );
-  }
+  const pct = capacite ? Math.round((places / capacite) * 100) : 0;
+  const complet = etat !== 'closed' && affichage === 'COMPLET';
+  const chip = etat === 'closed' ? affichage : complet ? 'Complet' : LIBELLES_ETAT[etat];
   return (
-    <article className="pk-card">
-      <div className="pk-card-top">
-        <span className="pk-name">{nom}</span>
-        <span className={`pk-chip ${etat}`}>{chip}</span>
-      </div>
-      {corps}
-      <div className="pk-meta">
-        <span>MAJ {timestamp}</span>
-        <span>{pctLibres}</span>
-      </div>
-    </article>
+    <button type="button" ref={cardRef} className={`card pcard${actif ? ' active' : ''}`} onClick={() => onSelect(nom)} aria-pressed={actif}>
+      <span className="pcard-name">
+        <span className="rank">{rang}</span>
+        {nom}
+        <span className={`chip ${etat}`}>{chip}</span>
+      </span>
+      {etat === 'closed' ? (
+        <>
+          <span className="pcard-count num">
+            <small>{affichage}</small>
+          </span>
+          <span className="meta">
+            <span>MAJ {timestamp}</span>
+            <span>—</span>
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="pcard-count num">
+            {fmtNombre(places)} <small>/ {fmtNombre(capacite)}</small>
+          </span>
+          <span className="bar" role="img" aria-label={`${pct} % de places libres`}>
+            <i style={{ width: `${Math.max(3, pct)}%`, background: COULEUR[etat] }} />
+          </span>
+          <span className="meta">
+            <span>
+              MAJ {timestamp}
+              {tendance !== null && tendance !== undefined && (
+                <>
+                  {' · '}
+                  <Tendance delta={tendance} /> / 30 min
+                </>
+              )}
+            </span>
+            <span className="num">{pct} % libres</span>
+          </span>
+        </>
+      )}
+    </button>
   );
 }

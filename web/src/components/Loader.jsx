@@ -1,11 +1,11 @@
 /* Écran de chargement : overlay centré avec barre de progression animée. */
 export default function Loader({ message }) {
   return (
-    <div className="pk-loader" role="status" aria-live="polite">
-      <div className="pk-loader-box">
-        <div className="pk-logo">P</div>
-        <div className="pk-loader-msg">{message}</div>
-        <div className="pk-loader-bar">
+    <div className="loader" role="status" aria-live="polite">
+      <div className="loader-box">
+        <div className="logo">P</div>
+        <div className="loader-msg">{message}</div>
+        <div className="loader-bar">
           <i />
         </div>
       </div>

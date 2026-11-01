@@ -79,6 +79,10 @@ Tout passe par GitHub. Le `docker-compose.yml` **à la racine du dépôt** const
 
 Les secrets ne sont jamais dans le dépôt : ils sont dans `/docker/dashboard-parking/.env` sur le VPS (`S3_BUCKET`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AIRTABLE_TOKEN`, `FIREBASE_PROJECT_ID`).
 
+## Interface
+
+Thèmes sombre et clair (choix mémorisé seulement si le stockage optionnel est accepté), tableau de bord (indicateurs, carte, liste filtrable avec tendance sur 30 min, historique), connexion avec la vidéo promo `public/media/video-promo.mp4` (chargée uniquement sur grand écran, sans son, remplacée par l'affiche si les animations sont réduites). Police Inter fournie par l'application (aucun appel à un CDN).
+
 ## Textes juridiques
 
 `src/lib/legal.js` contient CGU, politique de confidentialité et mentions légales (RGPD) : modèle à relire (adresse de l'éditeur, durées de conservation, coordonnées des sous-traitants).

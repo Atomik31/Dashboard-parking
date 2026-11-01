@@ -115,7 +115,7 @@ export const LEGAL_PAGES = {
         h: 'Cookies et stockage local',
         p: [
           'Le Service n’utilise que du stockage strictement nécessaire à son fonctionnement, exempté de consentement : session de connexion Firebase (conservée dans ton navigateur pour te reconnecter automatiquement), langue, indicateur d’enregistrement du compte et mémorisation de ton choix sur les cookies (12 mois).',
-          'Aucun cookie de mesure d’audience ou de publicité n’est déposé. Si un service optionnel était ajouté un jour, il ne serait activé qu’après ton accord, que tu peux modifier à tout moment via « Gestion des cookies » en bas de page.'
+          'Ton choix de thème d’affichage (clair ou sombre) n’est mémorisé dans ton navigateur que si tu as accepté le stockage optionnel ; sinon il ne vaut que pour la visite en cours. Aucun cookie de mesure d’audience ou de publicité n’est déposé. Si un service optionnel était ajouté un jour, il ne serait activé qu’après ton accord, que tu peux modifier à tout moment via « Gestion des cookies » en bas de page.'
         ]
       },
       {
